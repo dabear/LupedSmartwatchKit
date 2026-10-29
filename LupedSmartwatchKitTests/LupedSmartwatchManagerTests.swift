@@ -307,6 +307,7 @@ private final class MockSmartwatchManagerDelegate: SmartwatchManagerDelegate {
     var refreshRequests = 0
     func smartwatchManagerRequestsRefresh(_ manager: SmartwatchManager) { refreshRequests += 1 }
     func smartwatchManager(_ manager: SmartwatchManager, didLogEvent event: SmartwatchDeviceLogEntry) { logEntries.append(event) }
+    func smartwatchManager(_ manager: SmartwatchManager, requestBolus request: SmartwatchBolusRequest) async throws -> Double { throw SmartwatchBolusError.notAllowed }
 }
 
 final class LupedSetupProgressTests: XCTestCase {
@@ -350,7 +351,7 @@ final class LupedSetupProgressTests: XCTestCase {
 /// Declares only glucose but asks for more.
 private final class GreedySmartwatchManager: SmartwatchManager {
     static var capabilities: SmartwatchCapabilities { [.glucose] }
-    var requestedCapabilities: SmartwatchCapabilities { [.glucose, .loopStatus] }
+    var requestedCapabilities: SmartwatchCapabilities { [.glucose, .remoteBolus, .loopStatus] }
     var pluginIdentifier: String { "Greedy" }
     weak var smartwatchManagerDelegate: SmartwatchManagerDelegate?
     init() {}

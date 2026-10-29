@@ -27,7 +27,10 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     }
     public static let localizedTitle = LocalizedString("Pebble", comment: "Title of the Luped Pebble watch manager")
 
-    /// Requests from the watch (mute, bolus, carbs) are answered as ignored.
+    /// Remote actions (`.remoteMute`, `.remoteBolus`, `.remoteCarbs`) are not
+    /// declared: their request handling below is ready, but the watchface has to
+    /// react to `RESULT` and the requests need stronger security first. Without
+    /// them, a request from the watch is logged as ignored and never reaches the host.
     /// `.loopStatus` feeds the watch's IOB/COB strip and loop ring; `.therapy`
     /// the other status line choices (temp basal, eventual glucose, ISF & target).
     public static var capabilities: SmartwatchCapabilities { [.glucose, .history, .alerts, .loopStatus, .therapy] }
@@ -190,14 +193,14 @@ public final class LupedSmartwatchManager: SmartwatchManager {
             self.lockedDiagnostics.value = SavedDiagnostics(json: json, receivedAt: receivedAt)
             self.smartwatchManagerDelegate?.smartwatchManagerDidUpdateState(self)
         }
-        transport.alertMuteRequested = { [weak self] _ in
-            self?.ignoreRequest("mute")
+        transport.alertMuteRequested = { [weak self] duration in
+            self?.requestAlertMute(duration)
         }
-        transport.bolusRequested = { [weak self] _, forced in
-            self?.ignoreRequest(forced ? "forcedbolus" : "bolus")
+        transport.bolusRequested = { [weak self] units, forced in
+            self?.requestBolus(units, forced: forced)
         }
-        transport.carbsRequested = { [weak self] _ in
-            self?.ignoreRequest("carbs")
+        transport.carbsRequested = { [weak self] grams in
+            self?.requestCarbs(grams)
         }
         if let saved = savedDiagnostics {
             transport.restoreDiagnostics(json: saved.json, receivedAt: saved.receivedAt)
@@ -210,12 +213,98 @@ public final class LupedSmartwatchManager: SmartwatchManager {
         return transport
     }
 
-    /// Tells the watch its request was ignored: this plugin doesn't pass
-    /// requests on to the host.
+    /// Passes the watch's mute request to the host and logs the outcome.
     @MainActor
-    func ignoreRequest(_ action: String) {
-        logNote("Request from the watch ignored (\(action)): \(Self.hostName) doesn't take requests from this watch", kind: .info)
-        transport.sendResult("\(action):ignored")
+    func requestAlertMute(_ duration: TimeInterval) {
+        // Without `.remoteMute` the host never hears of it.
+        guard effectiveCapabilities.contains(.remoteMute) else {
+            logNote("Mute request from the watch ignored: remote mute is off for this watch", kind: .info)
+            transport.sendResult("mute:ignored")
+            return
+        }
+        guard let delegate = smartwatchManagerDelegate else {
+            logNote("Mute request not passed on: \(Self.hostName) isn't connected to this watch manager", kind: .error)
+            transport.sendResult("mute:failed")
+            return
+        }
+        Task { @MainActor in
+            do {
+                let end = try await delegate.smartwatchManager(self, requestAlertMute: duration)
+                let time = DateFormatter.localizedString(from: end, dateStyle: .none, timeStyle: .short)
+                logNote("\(Self.hostName) alerts muted from the watch until \(time)", kind: .info)
+                transport.sendResult("mute:ok")
+            } catch {
+                logNote("\(Self.hostName) refused the watch's mute request (\(error)); check Allow Mute from Watch in \(Self.hostName)'s settings", kind: .error)
+                transport.sendResult("mute:refused")
+            }
+        }
+    }
+
+    /// Asks the host for the bolus the watch chose, against the bolus context it
+    /// last sent, and logs the outcome. The host's policy decides: permission,
+    /// request and context age, maximum bolus, recommendation (skipped when
+    /// `forced`) and rate limits.
+    @MainActor
+    func requestBolus(_ units: Double, forced: Bool = false) {
+        let action = forced ? "forcedbolus" : "bolus"
+        guard effectiveCapabilities.contains(.remoteBolus) else {
+            logNote("Bolus request from the watch ignored: remote bolus is off for this watch", kind: .info)
+            transport.sendResult("\(action):ignored")
+            return
+        }
+        guard let delegate = smartwatchManagerDelegate else {
+            logNote("Bolus request not passed on: \(Self.hostName) isn't connected to this watch manager", kind: .error)
+            transport.sendResult("\(action):failed")
+            return
+        }
+        guard let context = latestSnapshot?.bolusContext else {
+            logNote("Bolus request not passed on: \(Self.hostName) hasn't sent a bolus context yet (Allow Boluses from Watch may be off)", kind: .error)
+            transport.sendResult("\(action):failed")
+            return
+        }
+        let request = SmartwatchBolusRequest(units: units, contextToken: context.token, requestedAt: Date(), isForced: forced)
+        logNote(String(format: "Asking %@ for a %.2f U %@from the watch", Self.hostName, request.units, forced ? "forced bolus (recommendation not checked) " : "bolus "), kind: .info)
+        Task { @MainActor in
+            do {
+                let units = try await delegate.smartwatchManager(self, requestBolus: request)
+                logNote(String(format: "%@ delivered %.2f U requested from the watch", Self.hostName, units), kind: .info)
+                transport.sendResult("\(action):ok")
+            } catch SmartwatchBolusError.inProgress {
+                // A repeat of the bolus being delivered: the first request's result follows.
+                logNote("\(Self.hostName) is still delivering this bolus; its result follows", kind: .info)
+            } catch {
+                logNote("\(Self.hostName) refused the watch's bolus request (\(error))", kind: .error)
+                transport.sendResult("\(action):refused")
+            }
+        }
+    }
+
+    /// Asks the host to add the carb entry the watch chose, and logs the outcome.
+    /// The host decides: permission and rate limit.
+    @MainActor
+    func requestCarbs(_ grams: Double) {
+        guard effectiveCapabilities.contains(.remoteCarbs) else {
+            logNote("Carb request from the watch ignored: remote carbs are off for this watch", kind: .info)
+            transport.sendResult("carbs:ignored")
+            return
+        }
+        guard let delegate = smartwatchManagerDelegate else {
+            logNote("Carb request not passed on: \(Self.hostName) isn't connected to this watch manager", kind: .error)
+            transport.sendResult("carbs:failed")
+            return
+        }
+        logNote(String(format: "Asking %@ to add %g g of carbs from the watch", Self.hostName, grams), kind: .info)
+        Task { @MainActor in
+            do {
+                let request = SmartwatchCarbEntryRequest(grams: grams, requestedAt: Date())
+                let grams = try await delegate.smartwatchManager(self, requestCarbEntry: request)
+                logNote(String(format: "%@ added %g g of carbs requested from the watch", Self.hostName, grams), kind: .info)
+                transport.sendResult("carbs:ok")
+            } catch {
+                logNote("\(Self.hostName) refused the watch's carb request (\(error))", kind: .error)
+                transport.sendResult("carbs:refused")
+            }
+        }
     }
 
     /// Whether the app may keep the watch's Bluetooth service running in the background.
