@@ -336,6 +336,13 @@ public final class LupedSmartwatchManager: SmartwatchManager {
         Task { await transport.refresh() }
     }
 
+    /// Shows the host's alert notes (why an alert wasn't sent, when it repeats)
+    /// next to the watch traffic. The host already wrote them to its device log.
+    @MainActor
+    public func watchHostDidLog(_ message: String) {
+        transport.communicationLog.append(.info, "\(Self.hostName): \(message)")
+    }
+
     public func delete(completion: @escaping () -> Void) {
         Task { @MainActor in
             // Removes the Bluetooth service and stops retries.

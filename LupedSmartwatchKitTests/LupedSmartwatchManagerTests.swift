@@ -64,9 +64,14 @@ final class LupedSmartwatchManagerTests: XCTestCase {
     func testUndeclaredRequestedCapabilitiesAreIgnored() {
         let greedy = GreedySmartwatchManager()
         XCTAssertEqual(greedy.effectiveCapabilities, [.glucose])
+        XCTAssertEqual(greedy.undeclaredRequestedCapabilities, [.remoteBolus, .loopStatus])
+        XCTAssertEqual(greedy.undeclaredRequestedCapabilities.description, "loopStatus, remoteBolus", "hosts log the names")
+        XCTAssertEqual(SmartwatchCapabilities([]).description, "none")
+        XCTAssertEqual(SmartwatchCapabilities([.glucose, SmartwatchCapabilities(rawValue: 1 << 20)]).description, "glucose, raw value 1048576")
 
         let luped = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, statusLine: .eventualGlucose))
         XCTAssertEqual(luped.effectiveCapabilities, luped.requestedCapabilities)
+        XCTAssertTrue(luped.undeclaredRequestedCapabilities.isEmpty)
     }
 
     func testSettingsChangesSaveState() {
@@ -112,7 +117,8 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         XCTAssertEqual(delegate.logEntries.map(\.type), [.send, .receive, .error, .connection])
     }
 
-    /// The plugin's own alert lines show in the in-app log.
+    /// Host alert notes and the plugin's own alert lines show in the in-app log.
+    /// Host notes are not echoed to the device log, which the host already wrote.
     func testAlertNotesShowInCommunicationLog() {
         let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false))
         let delegate = MockSmartwatchManagerDelegate()
@@ -124,6 +130,11 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         manager.watchAlertDidIssue(SmartwatchAlert(identifier: SmartwatchAlertIdentifier("glucose.high"), level: .warning, title: "High Glucose", issuedAt: Date()))
         XCTAssertTrue(log.entries.last?.message.hasPrefix("\(LupedSmartwatchManager.hostName) alert issued [warning], event 1: High Glucose") == true, log.text)
         XCTAssertEqual(delegate.logEntries.count, 1)
+
+        manager.watchHostDidLog("Next alert: from 11:25 if glucose stays above 10.0 mmol/L")
+        XCTAssertEqual(log.entries.last?.message, "\(LupedSmartwatchManager.hostName): Next alert: from 11:25 if glucose stays above 10.0 mmol/L")
+        XCTAssertEqual(log.entries.last?.kind, .info)
+        XCTAssertEqual(delegate.logEntries.count, 1, "The host already logged its note")
     }
 
     /// Delete from the settings screen asks the host to remove the manager and
