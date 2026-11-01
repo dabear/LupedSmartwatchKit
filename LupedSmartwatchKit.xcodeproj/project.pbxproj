@@ -12,6 +12,8 @@
 		1413878756A5B582A82FE090 /* LocalizedString.swift in Sources */ = {isa = PBXBuildFile; fileRef = E70A10170C55E9649C1ED093 /* LocalizedString.swift */; };
 		15AA3F76C05353BC58A28B43 /* LupedSmartwatchManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29A25EA7B5B47DC55CE42C4E /* LupedSmartwatchManagerTests.swift */; };
 		1969C29025243D96BB35F5AF /* LupedWatchSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 816FA6533EB0A15A9591F2ED /* LupedWatchSettingsView.swift */; };
+		DE779E3336A11F0A1D23E182 /* LupedDiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F7F8ECCF5127A7F8905CA5 /* LupedDiagnosticsView.swift */; };
+		374AD6DBBAB7C1B978763786 /* LupedCommunicationLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2B6B71676F75C12E4E95A8 /* LupedCommunicationLogView.swift */; };
 		D546DE76158CE5792EEFEAE5 /* LupedSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8335923448F8F274A47153 /* LupedSetupView.swift */; };
 		211BFBDEB42DC688343DE3FF /* LupedSmartwatchKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9C7C4FFAC76E0FEB933E2494 /* LupedSmartwatchKit.framework */; };
 		2CD2E24B0D1D7439E73296A9 /* LupedSmartwatchManager+UI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 621C0281FBAD005B785D4C2E /* LupedSmartwatchManager+UI.swift */; };
@@ -26,6 +28,7 @@
 		C76BE4E8D1E0BE9573A0DD57 /* LupedSmartwatchKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9C7C4FFAC76E0FEB933E2494 /* LupedSmartwatchKit.framework */; };
 		CD2A516B402C5DDADA0C0A29 /* LupedKit in Frameworks */ = {isa = PBXBuildFile; productRef = 1709CC1E7F365B1D40FF2BC6 /* LupedKit */; };
 		DC703883B4CE7A394D8BA7DB /* LupedSmartwatchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D753CC92B86D65BECDC39987 /* LupedSmartwatchManager.swift */; };
+		A44D2CAE7D554507A665CCFC /* LupedSmartwatchManager+RemoteActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99D1D91AB2A06B4D1AC3DC41 /* LupedSmartwatchManager+RemoteActions.swift */; };
 		75404F31F6F9BF164CC74635 /* LupedSetupProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC6D94ED4284D49372170B99 /* LupedSetupProgress.swift */; };
 		F40F953F9EEAC3711421AC0A /* LocalizedString.swift in Sources */ = {isa = PBXBuildFile; fileRef = 841E81D27BFDEC4B8E6BB257 /* LocalizedString.swift */; };
 /* End PBXBuildFile section */
@@ -85,11 +88,14 @@
 		6D73EF8C8A2888055497133A /* LupedSmartwatchPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LupedSmartwatchPlugin.swift"; sourceTree = "<group>"; };
 		70459BC5E19AD44287844CF7 /* LoopKitUI.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = LoopKitUI.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		816FA6533EB0A15A9591F2ED /* LupedWatchSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LupedWatchSettingsView.swift"; sourceTree = "<group>"; };
+		B6F7F8ECCF5127A7F8905CA5 /* LupedDiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LupedDiagnosticsView.swift"; sourceTree = "<group>"; };
+		AE2B6B71676F75C12E4E95A8 /* LupedCommunicationLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LupedCommunicationLogView.swift"; sourceTree = "<group>"; };
 		BF8335923448F8F274A47153 /* LupedSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LupedSetupView.swift"; sourceTree = "<group>"; };
 		841E81D27BFDEC4B8E6BB257 /* LocalizedString.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalizedString.swift"; sourceTree = "<group>"; };
 		9C7C4FFAC76E0FEB933E2494 /* LupedSmartwatchKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = LupedSmartwatchKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		D5D3DC6C98D845C8DB3FF496 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D753CC92B86D65BECDC39987 /* LupedSmartwatchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LupedSmartwatchManager.swift"; sourceTree = "<group>"; };
+		99D1D91AB2A06B4D1AC3DC41 /* LupedSmartwatchManager+RemoteActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LupedSmartwatchManager+RemoteActions.swift"; sourceTree = "<group>"; };
 		BC6D94ED4284D49372170B99 /* LupedSetupProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LupedSetupProgress.swift"; sourceTree = "<group>"; };
 		E70A10170C55E9649C1ED093 /* LocalizedString.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LocalizedString.swift"; sourceTree = "<group>"; };
 		EAFCF2DC5817E761AC2BB11C /* LupedSmartwatchKitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LupedSmartwatchKitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -179,6 +185,8 @@
 			children = (
 				621C0281FBAD005B785D4C2E /* LupedSmartwatchManager+UI.swift */,
 				816FA6533EB0A15A9591F2ED /* LupedWatchSettingsView.swift */,
+				B6F7F8ECCF5127A7F8905CA5 /* LupedDiagnosticsView.swift */,
+				AE2B6B71676F75C12E4E95A8 /* LupedCommunicationLogView.swift */,
 				BF8335923448F8F274A47153 /* LupedSetupView.swift */,
 				E70A10170C55E9649C1ED093 /* LocalizedString.swift */,
 			);
@@ -201,6 +209,7 @@
 			isa = PBXGroup;
 			children = (
 				D753CC92B86D65BECDC39987 /* LupedSmartwatchManager.swift */,
+				99D1D91AB2A06B4D1AC3DC41 /* LupedSmartwatchManager+RemoteActions.swift */,
 				BC6D94ED4284D49372170B99 /* LupedSetupProgress.swift */,
 				841E81D27BFDEC4B8E6BB257 /* LocalizedString.swift */,
 			);
@@ -328,6 +337,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DC703883B4CE7A394D8BA7DB /* LupedSmartwatchManager.swift in Sources */,
+				A44D2CAE7D554507A665CCFC /* LupedSmartwatchManager+RemoteActions.swift in Sources */,
 				75404F31F6F9BF164CC74635 /* LupedSetupProgress.swift in Sources */,
 				F40F953F9EEAC3711421AC0A /* LocalizedString.swift in Sources */,
 			);
@@ -347,6 +357,8 @@
 			files = (
 				2CD2E24B0D1D7439E73296A9 /* LupedSmartwatchManager+UI.swift in Sources */,
 				1969C29025243D96BB35F5AF /* LupedWatchSettingsView.swift in Sources */,
+				DE779E3336A11F0A1D23E182 /* LupedDiagnosticsView.swift in Sources */,
+				374AD6DBBAB7C1B978763786 /* LupedCommunicationLogView.swift in Sources */,
 				D546DE76158CE5792EEFEAE5 /* LupedSetupView.swift in Sources */,
 				1413878756A5B582A82FE090 /* LocalizedString.swift in Sources */,
 			);
