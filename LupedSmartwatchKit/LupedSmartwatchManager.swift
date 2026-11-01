@@ -359,7 +359,6 @@ extension LupedSmartwatchManager: DeviceManager {
     // Watches don't issue LoopKit alerts. Both AlertResponder forms are defaulted
     // so the plugin builds against LoopKit variants that declare either one.
     public func acknowledgeAlert(alertIdentifier: Alert.AlertIdentifier) async throws {}
-    public func acknowledgeAlert(alertIdentifier: Alert.AlertIdentifier, completion: @escaping (Error?) -> Void) { completion(nil) }
     public func getSoundBaseURL() -> URL? { nil }
     public func getSounds() -> [Alert.Sound] { [] }
 }
