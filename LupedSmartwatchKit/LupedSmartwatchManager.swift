@@ -102,10 +102,16 @@ public final class LupedSmartwatchManager: SmartwatchManager {
 
     /// Host-issued alerts currently showing, by identifier. The watch colours its
     /// ring and buzzes from them; neither the plugin nor the watch has thresholds.
-    @MainActor var activeAlerts: [SmartwatchAlertIdentifier: SmartwatchAlert] = [:]
+    /// Saved in `rawState`: after a relaunch the host doesn't issue an alert again
+    /// for an episode it already alerted on, but it still retracts it.
+    @MainActor var activeAlerts: [SmartwatchAlertIdentifier: SmartwatchAlert] {
+        get { lockedActiveAlerts.value }
+        set { lockedActiveAlerts.value = newValue }
+    }
+    private let lockedActiveAlerts: Locked<[SmartwatchAlertIdentifier: SmartwatchAlert]>
 
-    /// When this manager started tracking alerts. Alerts the host issued before
-    /// then (for example before a relaunch) are only known once it issues them again.
+    /// When this manager started tracking alerts, for the communication log.
+    /// Alerts active at a relaunch come back from `rawState`.
     private let alertTrackingStarted = Date()
 
     /// The glucose alert states the watch knows (DATA index 8), most important first.
@@ -150,10 +156,14 @@ public final class LupedSmartwatchManager: SmartwatchManager {
         return titles
     }
 
+    /// A new manager (a watch added again) starts its alert event at a random
+    /// value: the watch may still hold the previous manager's, and a first alert
+    /// landing on it would not buzz.
     public init(settings: LupedSettings = LupedSettings(isEnabled: true)) {
         lockedSettings = Locked(settings)
-        lockedAlertEvent = Locked(0)
+        lockedAlertEvent = Locked(Int.random(in: 0..<Self.alertEventModulus))
         lockedDiagnostics = Locked(nil)
+        lockedActiveAlerts = Locked([:])
     }
 
     public init?(rawState: RawStateValue) {
@@ -165,6 +175,8 @@ public final class LupedSmartwatchManager: SmartwatchManager {
         } else {
             lockedDiagnostics = Locked(nil)
         }
+        let savedAlerts = (rawState["activeAlerts"] as? [[String: Any]] ?? []).compactMap(SmartwatchAlert.init(savedState:))
+        lockedActiveAlerts = Locked(Dictionary(savedAlerts.map { ($0.identifier, $0) }, uniquingKeysWith: { _, last in last }))
     }
 
     public var rawState: RawStateValue {
@@ -172,6 +184,10 @@ public final class LupedSmartwatchManager: SmartwatchManager {
         if let saved = savedDiagnostics {
             state["watchDiagnostics"] = saved.json
             state["watchDiagnosticsReceivedAt"] = saved.receivedAt.timeIntervalSince1970
+        }
+        let alerts = lockedActiveAlerts.value
+        if !alerts.isEmpty {
+            state["activeAlerts"] = alerts.values.sorted { $0.issuedAt < $1.issuedAt }.map(\.savedState)
         }
         return state
     }
@@ -251,6 +267,7 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     @MainActor
     public func watchAlertDidRetract(_ identifier: SmartwatchAlertIdentifier) {
         guard let alert = activeAlerts.removeValue(forKey: identifier) else { return }
+        smartwatchManagerDelegate?.smartwatchManagerDidUpdateState(self)
         logNote("\(Self.hostName) alert retracted: \(alert.title ?? identifier.value)", kind: .info)
         Task { await transport.refresh() }
     }
@@ -361,6 +378,34 @@ extension LupedSmartwatchManager: DeviceManager {
     public func acknowledgeAlert(alertIdentifier: Alert.AlertIdentifier) async throws {}
     public func getSoundBaseURL() -> URL? { nil }
     public func getSounds() -> [Alert.Sound] { [] }
+}
+
+private extension SmartwatchAlert {
+    /// How an active alert is saved in the manager's `rawState`.
+    var savedState: [String: Any] {
+        var state: [String: Any] = ["identifier": identifier.value, "level": level.rawValue, "issuedAt": issuedAt.timeIntervalSince1970]
+        state["title"] = title
+        state["body"] = body
+        state["glucoseAlertType"] = glucoseAlertType?.rawValue
+        return state
+    }
+
+    init?(savedState: [String: Any]) {
+        guard let identifier = savedState["identifier"] as? String,
+              let level = (savedState["level"] as? Int).flatMap(SmartwatchAlertLevel.init(rawValue:)),
+              let issuedAt = savedState["issuedAt"] as? TimeInterval
+        else {
+            return nil
+        }
+        self.init(
+            identifier: SmartwatchAlertIdentifier(identifier),
+            level: level,
+            title: savedState["title"] as? String,
+            body: savedState["body"] as? String,
+            issuedAt: Date(timeIntervalSince1970: issuedAt),
+            glucoseAlertType: (savedState["glucoseAlertType"] as? String).flatMap(SmartwatchGlucoseAlertType.init(rawValue:))
+        )
+    }
 }
 
 private extension LupedTrend {
