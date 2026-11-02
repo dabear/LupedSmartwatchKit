@@ -175,7 +175,8 @@ final class LupedSmartwatchManagerTests: XCTestCase {
     }
 
     /// Luped declares loop status (IOB/COB and the loop ring) and therapy (the
-    /// other status line choices) but handles no URL.
+    /// other status line choices) but handles no URL. Remote actions stay off
+    /// until requests are secured.
     func testOptionalHostFeaturesStayOff() throws {
         XCTAssertEqual(LupedSmartwatchManager.capabilities, [.glucose, .history, .alerts, .loopStatus, .therapy])
         let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false))

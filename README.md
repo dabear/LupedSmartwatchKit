@@ -54,6 +54,31 @@ plugin requests only what its Display settings need (`requestedCapabilities`).
 - A watchface start is answered once, though Luped asks twice (Alloy's ready
   handshake, then its own `refresh`).
 
+## Requests from the watch (not declared yet)
+
+The plugin passes the watch's requests to the host: alert mute, carbs, bolus,
+and override and temp target presets. It doesn't declare the capabilities yet:
+the Luped watchface has no screen for them, so each request is logged as
+ignored and never reaches the host. The host still checks its own Watch
+Permissions and rules for every request.
+
+Boluses are only ever signed (elbbepTransport):
+
+- On every watchface start and Bluetooth session, and only while remote bolus is
+  allowed, the phone gives the watch a random 256-bit session key
+  (`COMMAND auth:v1:<sid>:<key>`). The watch keeps it in memory only.
+- The watch sends `signedbolus:<units>[:<grams>]` (or `signedforcedbolus:`)
+  with `@<confirmedAt>#<sid>.<seq>.<mac>`: HMAC-SHA256 over every field,
+  truncated to 16 bytes.
+- LupedKit checks the key, session, MAC (constant time), sequence, and that the
+  request is at most 30 s old and at most 5 s ahead, then passes it to the
+  plugin once. A resend gets the same results again.
+- With carbs, the plugin adds the carbs first, then checks the bolus against the
+  host's next bolus context, which counts them. No carbs, no bolus.
+- The signature proves the request is unchanged and comes from the watchface run
+  that got the key. It doesn't prove who wears the watch; the host's own checks
+  always apply.
+
 ## Device log
 
 Every line LupedKit writes to its communication log also goes to
