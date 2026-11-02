@@ -1,0 +1,15 @@
+{
+  "originHash" : "d64d50f6acd7cea5a91e44ae94fbdca1c36a97ea0ac2cdde1db1da5ca1194f60",
+  "pins" : [
+    {
+      "identity" : "elbbeptransport",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/dabear/elbbepTransport.git",
+      "state" : {
+        "revision" : "22a718082e975e393f189c56903da14b0244fd87",
+        "version" : "0.3.59"
+      }
+    }
+  ],
+  "version" : 3
+}
