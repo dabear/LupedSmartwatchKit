@@ -145,9 +145,7 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         manager.smartwatchManagerDelegate = delegate
         manager.transportIfStarted = LupedTransport(hostName: LupedSmartwatchManager.hostName, settings: manager.settings)
 
-        let deleted = expectation(description: "delete completes")
-        manager.delete { deleted.fulfill() }
-        await fulfillment(of: [deleted], timeout: 2)
+        await manager.delete()
 
         XCTAssertEqual(delegate.deletions, 1)
         XCTAssertEqual(manager.transportIfStarted?.settings.isEnabled, false)

@@ -279,12 +279,10 @@ public final class LupedSmartwatchManager: SmartwatchManager {
         transport.communicationLog.append(.info, "\(Self.hostName): \(message)")
     }
 
-    public func delete(completion: @escaping () -> Void) {
-        Task { @MainActor in
-            // Removes the Bluetooth service and stops retries.
-            transportIfStarted?.settings.isEnabled = false
-            notifyDelegateOfDeletion(completion: completion)
-        }
+    public func delete() async {
+        // Removes the Bluetooth service and stops retries.
+        await MainActor.run { transportIfStarted?.settings.isEnabled = false }
+        await smartwatchManagerDelegate?.smartwatchManagerWantsDeletion(self)
     }
 
     @MainActor

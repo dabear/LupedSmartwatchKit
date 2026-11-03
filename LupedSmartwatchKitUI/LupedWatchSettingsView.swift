@@ -95,8 +95,9 @@ struct LupedWatchSettingsView: View {
         }
         .confirmationDialog(LocalizedString("Are you sure you want to delete this Pebble?", comment: "Delete Pebble confirmation title"), isPresented: $confirmingDelete, titleVisibility: .visible) {
             Button(LocalizedString("Delete Pebble", comment: "Button removing the Pebble smartwatch"), role: .destructive) {
-                model.manager.delete {
-                    DispatchQueue.main.async(execute: didFinish)
+                Task {
+                    await model.manager.delete()
+                    didFinish()
                 }
             }
         } message: {
