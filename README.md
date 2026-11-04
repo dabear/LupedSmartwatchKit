@@ -1,7 +1,7 @@
 # LupedSmartwatchKit
 
 A Loop `SmartwatchManager` plugin that shows Loop's glucose on a Pebble running the
-[Luped CGM watchface](https://github.com/dabear/CrimsonBearPebbleWatchFace),
+[Luped CGM watchface](https://github.com/dabear/LupedPebbleWatchFace),
 over [elbbepTransport](https://github.com/dabear/elbbepTransport)'s direct
 Bluetooth link (no PebbleKit JS, no phone-side Pebble SDK).
 
