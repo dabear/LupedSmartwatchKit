@@ -23,7 +23,7 @@ extension LupedSmartwatchManager {
         }
         guard let requestedAt else {
             logNote("Mute request refused: the watch didn't say when it was confirmed (COMMAND without @<confirmedAt>)", kind: .error)
-            transport.sendResult("mute:refused")
+            transport.sendResult("mute:refused", reason: .notVerified)
             return
         }
         guard let delegate = smartwatchManagerDelegate else {
@@ -40,8 +40,40 @@ extension LupedSmartwatchManager {
                 transport.sendResult("mute:ok")
             } catch {
                 logNote("\(Self.hostName) refused the watch's mute request (\(error)); check Allow Mute from Watch in \(Self.hostName)'s settings", kind: .error)
-                transport.sendResult("mute:refused")
+                let answer = Self.answer(for: error)
+                transport.sendResult("mute:\(answer.outcome)", reason: answer.reason)
             }
+        }
+    }
+
+    /// The `RESULT` outcome and reason for the host's error: `failed` when the
+    /// host couldn't carry it out, `refused` with the reason when it wouldn't.
+    static func answer(for error: Error) -> (outcome: String, reason: LupedResultReason?) {
+        switch error {
+        case SmartwatchAlertMuteError.notAllowed, SmartwatchCarbEntryError.notAllowed, SmartwatchPresetError.notAllowed, SmartwatchBolusError.notAllowed:
+            return ("refused", .notAllowed)
+        case SmartwatchAlertMuteError.expiredRequest, SmartwatchCarbEntryError.expiredRequest, SmartwatchPresetError.expiredRequest, SmartwatchBolusError.expiredRequest:
+            return ("refused", .tooOld)
+        case SmartwatchCarbEntryError.invalidAmount, SmartwatchBolusError.invalidAmount:
+            return ("refused", .invalidAmount)
+        case SmartwatchCarbEntryError.exceedsMaximum, SmartwatchBolusError.exceedsMaximumBolus:
+            return ("refused", .overMaximum)
+        case SmartwatchCarbEntryError.rateLimited, SmartwatchBolusError.rateLimited:
+            return ("refused", .tooSoon)
+        case SmartwatchBolusError.dailyLimitReached:
+            return ("refused", .dailyLimit)
+        case SmartwatchBolusError.exceedsRecommendation:
+            return ("refused", .overRecommendation)
+        case SmartwatchBolusError.staleContext, SmartwatchBolusError.noRecentGlucose:
+            return ("refused", .noRecentGlucose)
+        case SmartwatchBolusError.inProgress:
+            return ("refused", .inProgress)
+        case SmartwatchPresetError.unknownPreset:
+            return ("refused", .noSuchPreset)
+        case SmartwatchCarbEntryError.failed, SmartwatchPresetError.failed, SmartwatchBolusError.deliveryFailed:
+            return ("failed", nil)
+        default:
+            return ("refused", nil)
         }
     }
 
@@ -66,25 +98,25 @@ extension LupedSmartwatchManager {
     func requestBolus(_ units: Double, forced: Bool = false, grams: Double? = nil, requestedAt: Date) {
         let action = forced ? "signedforcedbolus" : "signedbolus"
         // Answers the request: its carbs first if it had any, then the bolus.
-        let answer = { [transport] (carbs: String?, bolus: String) in
+        let answer = { [transport] (carbs: String?, bolus: String, reason: LupedResultReason?) in
             if grams != nil, let carbs {
-                transport.sendResult("carbs:\(carbs)")
+                transport.sendResult("carbs:\(carbs)", reason: reason)
             }
-            transport.sendResult("\(action):\(bolus)")
+            transport.sendResult("\(action):\(bolus)", reason: reason)
         }
         guard effectiveCapabilities.contains(.remoteBolus) else {
             logNote("Bolus request from the watch ignored: \(capabilityMismatch(.remoteBolus, named: "remoteBolus"))", kind: .error)
-            answer("ignored", "ignored")
+            answer("ignored", "ignored", nil)
             return
         }
         if grams != nil, !effectiveCapabilities.contains(.remoteCarbs) {
             logNote("Bolus request with carbs refused: \(capabilityMismatch(.remoteCarbs, named: "remoteCarbs")), and the bolus isn't given without its carbs", kind: .error)
-            answer("ignored", "refused")
+            answer("ignored", "refused", .notAllowed)
             return
         }
         guard let delegate = smartwatchManagerDelegate else {
             logNote("Bolus request not passed on: \(Self.hostName) isn't connected to this watch manager", kind: .error)
-            answer("failed", "failed")
+            answer("failed", "failed", nil)
             return
         }
         Task { @MainActor in
@@ -96,7 +128,8 @@ extension LupedSmartwatchManager {
                     transport.sendResult("carbs:ok")
                 } catch {
                     logNote("\(Self.hostName) refused the watch's carbs (\(error)), so the bolus isn't given either", kind: .error)
-                    answer("refused", "refused")
+                    let carbs = Self.answer(for: error)
+                    answer(carbs.outcome, "refused", carbs.reason)
                     return
                 }
             }
@@ -118,10 +151,11 @@ extension LupedSmartwatchManager {
                 // LupedKit passes each signed request on once, so this is another
                 // request for the bolus being delivered: that one's result follows.
                 logNote("\(Self.hostName) is still delivering a bolus for this context; this request is refused", kind: .error)
-                transport.sendResult("\(action):refused")
+                transport.sendResult("\(action):refused", reason: .inProgress)
             } catch {
                 logNote("\(Self.hostName) refused the watch's bolus request (\(error))", kind: .error)
-                transport.sendResult("\(action):refused")
+                let answer = Self.answer(for: error)
+                transport.sendResult("\(action):\(answer.outcome)", reason: answer.reason)
             }
         }
     }
@@ -152,7 +186,7 @@ extension LupedSmartwatchManager {
         }
         guard let requestedAt else {
             logNote("Carb request refused: the watch didn't say when it was confirmed (COMMAND without @<confirmedAt>)", kind: .error)
-            transport.sendResult("carbs:refused")
+            transport.sendResult("carbs:refused", reason: .notVerified)
             return
         }
         guard let delegate = smartwatchManagerDelegate else {
@@ -169,7 +203,8 @@ extension LupedSmartwatchManager {
                 transport.sendResult("carbs:ok")
             } catch {
                 logNote("\(Self.hostName) refused the watch's carb request (\(error))", kind: .error)
-                transport.sendResult("carbs:refused")
+                let answer = Self.answer(for: error)
+                transport.sendResult("carbs:\(answer.outcome)", reason: answer.reason)
             }
         }
     }
@@ -209,7 +244,7 @@ extension LupedSmartwatchManager {
         }
         guard let requestedAt else {
             logNote("\(request) refused: the watch didn't say when it was confirmed (COMMAND without @<confirmedAt>)", kind: .error)
-            transport.sendResult("\(kind.action):refused")
+            transport.sendResult("\(kind.action):refused", reason: .notVerified)
             return
         }
         guard let delegate = smartwatchManagerDelegate else {
@@ -228,7 +263,7 @@ extension LupedSmartwatchManager {
             else {
                 let known = presets.isEmpty ? "it hasn't sent any" : presets.map { "\"\($0.name)\"" }.joined(separator: ", ")
                 logNote("\(request) refused: \(Self.hostName) has no \(kind.noun) \"\(wanted)\" (\(known))", kind: .error)
-                transport.sendResult("\(kind.action):refused")
+                transport.sendResult("\(kind.action):refused", reason: .noSuchPreset)
                 return
             }
             presetAction = .activate(presetID: preset.id)
@@ -245,7 +280,8 @@ extension LupedSmartwatchManager {
                 transport.sendResult("\(kind.action):ok")
             } catch {
                 logNote("\(Self.hostName) refused the watch's \(kind.noun) request (\(error)); check \(kind.permission) in \(Self.hostName)'s settings", kind: .error)
-                transport.sendResult("\(kind.action):refused")
+                let answer = Self.answer(for: error)
+                transport.sendResult("\(kind.action):\(answer.outcome)", reason: answer.reason)
             }
         }
     }

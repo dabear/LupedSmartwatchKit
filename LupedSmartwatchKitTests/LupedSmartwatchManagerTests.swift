@@ -7,6 +7,7 @@
 
 import XCTest
 import LoopKit
+import LupedKit
 @testable import LupedSmartwatchKit
 
 @MainActor
@@ -57,6 +58,16 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         XCTAssertEqual(delegate.refreshRequests, 3)
         manager.settings.fullScreen = false
         XCTAssertEqual(manager.requestedCapabilities, [.glucose, .history, .alerts, .loopStatus, .therapy], "the chosen line comes back")
+    }
+
+    // The host's errors become RESULT outcomes with a reason the watch shows.
+    func testHostErrorsBecomeOutcomesWithReasons() {
+        XCTAssertTrue(LupedSmartwatchManager.answer(for: SmartwatchCarbEntryError.rateLimited) == ("refused", .tooSoon))
+        XCTAssertTrue(LupedSmartwatchManager.answer(for: SmartwatchBolusError.exceedsMaximumBolus) == ("refused", .overMaximum))
+        XCTAssertTrue(LupedSmartwatchManager.answer(for: SmartwatchAlertMuteError.notAllowed) == ("refused", .notAllowed))
+        XCTAssertTrue(LupedSmartwatchManager.answer(for: SmartwatchPresetError.unknownPreset) == ("refused", .noSuchPreset))
+        XCTAssertTrue(LupedSmartwatchManager.answer(for: SmartwatchBolusError.deliveryFailed("pump")) == ("failed", nil))
+        XCTAssertTrue(LupedSmartwatchManager.answer(for: SmartwatchBolusError.refusedByHost("no")) == ("refused", nil))
     }
 
     // Luped Remote shows IOB and COB whatever the watchface shows.
