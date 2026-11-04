@@ -36,13 +36,14 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     public static var capabilities: SmartwatchCapabilities { [.glucose, .history, .alerts, .loopStatus, .therapy] }
 
     /// Only what the watch shows: loop status while the loop ring shows (every
-    /// shown line, and None with Last Loop on), therapy values for the lines the
-    /// phone formats from them; with the Large Glucose layout neither. History is
-    /// always requested: the delta and trend come from it. The host fills nothing
-    /// else.
+    /// shown line, and None with Last Loop on) or Luped Remote is on (it always
+    /// shows IOB and COB), therapy values for the lines the phone formats from
+    /// them; with the Large Glucose layout and Luped Remote off neither. History
+    /// is always requested: the delta and trend come from it. The host fills
+    /// nothing else.
     public var requestedCapabilities: SmartwatchCapabilities {
         var requested: SmartwatchCapabilities = [.glucose, .history, .alerts]
-        if settings.needsLoopStatus { requested.insert(.loopStatus) }
+        if settings.hostNeedsLoopStatus { requested.insert(.loopStatus) }
         if settings.needsTherapy { requested.insert(.therapy) }
         return requested
     }

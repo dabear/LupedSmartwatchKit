@@ -69,6 +69,17 @@ struct LupedWatchSettingsView: View {
             }
 
             Section {
+                Toggle(LocalizedString("Luped Remote", comment: "Toggle serving the Luped Remote watchapp"), isOn: $model.settings.remoteEnabled)
+                if model.settings.remoteEnabled {
+                    LupedRemoteStatusRow(status: transport.status)
+                }
+            } header: {
+                Text(LocalizedString("Watch App", comment: "Header for the Luped Remote settings"))
+            } footer: {
+                Text(String(format: LocalizedString("Luped Remote is a Pebble watchapp from the Pebble app store. It shows the latest glucose, IOB and COB, and sends %1$@ the watchface's requests from the watch's buttons, each confirmed on the watch: mute alerts, add carbs, end an override or temp target, and a bolus where %1$@ allows one. %1$@ checks each request as it does the watchface's. On the watch, Settings → Quick Launch → Tap Up opens it with one press.", comment: "Footer for the Luped Remote settings (1: app name)"), LupedSmartwatchManager.hostName))
+            }
+
+            Section {
                 NavigationLink(destination: LupedDiagnosticsView(transport: transport)) {
                     Text(LocalizedString("Diagnostics", comment: "Row opening Pebble diagnostics"))
                 }
@@ -162,6 +173,28 @@ struct LupedAdvancedSettingsView: View {
     }
 }
 
+/// Luped Remote's watch session, and whether the watch is running it.
+struct LupedRemoteStatusRow: View {
+    @ObservedObject var status: LupedLinkStatus
+
+    private var text: String {
+        switch status.remoteLink {
+        case .open:
+            return status.foreground == .remote
+                ? LocalizedString("Open on the watch", comment: "Luped Remote status: the watch runs it")
+                : LocalizedString("Connected", comment: "Luped Remote status: session open")
+        case .connecting: return LocalizedString("Connecting", comment: "Pebble link status: session handshake in progress")
+        case .waitingForWatch: return LocalizedString("Waiting for the watch", comment: "Pebble link status: no watch session")
+        case .bluetoothUnavailable: return LocalizedString("Bluetooth unavailable", comment: "Pebble link status: Bluetooth off or unauthorized")
+        case .off: return LocalizedString("Off", comment: "Pebble link status: disabled")
+        }
+    }
+
+    var body: some View {
+        LabeledContent(LocalizedString("Status", comment: "Luped Remote status row"), value: text)
+    }
+}
+
 /// Whether Loop is connected to the watch and when it last delivered a reading.
 struct LupedLinkStatusSection: View {
     let transport: LupedTransport
@@ -189,8 +222,11 @@ struct LupedLinkStatusSection: View {
             if status.paused {
                 return LocalizedString("Connected · Luped CGM not open, sending paused", comment: "Pebble link status: sending paused after repeated rejections")
             }
-            return watchfaceRejected
-                ? LocalizedString("Connected · Luped CGM not open", comment: "Pebble link status: connected but the watch rejected the reading")
+            if watchfaceRejected {
+                return LocalizedString("Connected · Luped CGM not open", comment: "Pebble link status: connected but the watch rejected the reading")
+            }
+            return status.foreground == .remote
+                ? LocalizedString("Connected · Luped Remote open", comment: "Pebble link status: the watch runs Luped Remote")
                 : LocalizedString("Connected", comment: "Pebble link status: session open")
         }
     }

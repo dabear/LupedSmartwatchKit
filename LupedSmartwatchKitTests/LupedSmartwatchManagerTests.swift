@@ -32,7 +32,7 @@ final class LupedSmartwatchManagerTests: XCTestCase {
     // The host fills only what the watch shows (status line and loop ring), and
     // is asked for a new snapshot when that changes.
     func testRequestedCapabilitiesFollowTheStatusLineAndLoopRing() {
-        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, statusLine: .none, loopRing: false))
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, statusLine: .none, loopRing: false, remoteEnabled: false))
         let delegate = MockSmartwatchManagerDelegate()
         manager.smartwatchManagerDelegate = delegate
         XCTAssertEqual(manager.requestedCapabilities, [.glucose, .history, .alerts])
@@ -57,6 +57,14 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         XCTAssertEqual(delegate.refreshRequests, 3)
         manager.settings.fullScreen = false
         XCTAssertEqual(manager.requestedCapabilities, [.glucose, .history, .alerts, .loopStatus, .therapy], "the chosen line comes back")
+    }
+
+    // Luped Remote shows IOB and COB whatever the watchface shows.
+    func testLupedRemoteAlwaysNeedsTheLoopStatus() {
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, fullScreen: true))
+        XCTAssertEqual(manager.requestedCapabilities, [.glucose, .history, .alerts, .loopStatus])
+        manager.settings.remoteEnabled = false
+        XCTAssertEqual(manager.requestedCapabilities, [.glucose, .history, .alerts])
     }
 
     // A plugin can't obtain a capability it didn't declare: hosts act only on
