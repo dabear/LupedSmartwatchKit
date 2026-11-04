@@ -36,28 +36,28 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, statusLine: .none, loopRing: false, remoteEnabled: false))
         let delegate = MockSmartwatchManagerDelegate()
         manager.smartwatchManagerDelegate = delegate
-        XCTAssertEqual(manager.requestedCapabilities, [.glucose, .history, .alerts])
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts])
 
         manager.settings.loopRing = true
-        XCTAssertEqual(manager.requestedCapabilities, [.glucose, .history, .alerts, .loopStatus], "None with the loop ring still needs the loop's age")
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts, .loopStatus], "None with the loop ring still needs the loop's age")
         XCTAssertEqual(delegate.refreshRequests, 1)
 
         manager.settings.statusLine = .iobAndCob
         XCTAssertEqual(delegate.refreshRequests, 1, "same capabilities: no new snapshot needed")
 
         manager.settings.statusLine = .eventualGlucose
-        XCTAssertEqual(manager.requestedCapabilities, [.glucose, .history, .alerts, .loopStatus, .therapy])
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts, .loopStatus, .therapy])
         XCTAssertEqual(delegate.refreshRequests, 2)
 
         manager.settings.loopRing = false
-        XCTAssertEqual(manager.requestedCapabilities, [.glucose, .history, .alerts, .loopStatus, .therapy], "a shown line keeps the loop ring")
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts, .loopStatus, .therapy], "a shown line keeps the loop ring")
         XCTAssertTrue(manager.requestedCapabilities.isSubset(of: LupedSmartwatchManager.capabilities))
 
         manager.settings.fullScreen = true
-        XCTAssertEqual(manager.requestedCapabilities, [.glucose, .history, .alerts], "Large Glucose shows no status line or last loop")
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts], "Large Glucose shows no status line or last loop")
         XCTAssertEqual(delegate.refreshRequests, 3)
         manager.settings.fullScreen = false
-        XCTAssertEqual(manager.requestedCapabilities, [.glucose, .history, .alerts, .loopStatus, .therapy], "the chosen line comes back")
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts, .loopStatus, .therapy], "the chosen line comes back")
     }
 
     // The host's errors become RESULT outcomes with a reason the watch shows.
@@ -73,9 +73,9 @@ final class LupedSmartwatchManagerTests: XCTestCase {
     // Luped Remote shows IOB and COB whatever the watchface shows.
     func testLupedRemoteAlwaysNeedsTheLoopStatus() {
         let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, fullScreen: true))
-        XCTAssertEqual(manager.requestedCapabilities, [.glucose, .history, .alerts, .loopStatus])
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts, .loopStatus])
         manager.settings.remoteEnabled = false
-        XCTAssertEqual(manager.requestedCapabilities, [.glucose, .history, .alerts])
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts])
     }
 
     // A plugin can't obtain a capability it didn't declare: hosts act only on
@@ -195,7 +195,7 @@ final class LupedSmartwatchManagerTests: XCTestCase {
     /// other status line choices) but handles no URL. Remote actions stay off
     /// until requests are secured.
     func testOptionalHostFeaturesStayOff() throws {
-        XCTAssertEqual(LupedSmartwatchManager.capabilities, [.glucose, .history, .alerts, .loopStatus, .therapy])
+        XCTAssertEqual(LupedSmartwatchManager.capabilities, [.glucose, .history, .alerts, .loopStatus, .therapy, .remoteMute, .remoteCarbs, .remoteBolus, .remoteOverride, .remoteTempTarget])
         let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false))
         let reading = sample(120, minutes: 5)
         manager.latestSnapshot = SmartwatchStatusSnapshot(displayUnit: .milligramsPerDeciliter, glucose: reading, glucoseHistory: [reading])

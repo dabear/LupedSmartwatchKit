@@ -27,13 +27,15 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     }
     public static let localizedTitle = LocalizedString("Pebble", comment: "Title of the Luped Pebble watch manager")
 
-    /// Remote actions (`.remoteMute`, `.remoteCarbs`, `.remoteBolus`,
-    /// `.remoteOverride`, `.remoteTempTarget`) are not declared: their request
-    /// handling is ready, but the watchface has no screen for them yet. Without
-    /// them, a request from the watch is logged as ignored and never reaches the host.
+    /// Every remote action is declared and requested (this local build only):
+    /// Luped Remote sends them, each confirmed on the watch, and the host still
+    /// needs its user's Watch Permissions for each one.
     /// `.loopStatus` feeds the watch's IOB/COB strip and loop ring; `.therapy`
     /// the other status line choices (temp basal, eventual glucose, ISF & target).
-    public static var capabilities: SmartwatchCapabilities { [.glucose, .history, .alerts, .loopStatus, .therapy] }
+    public static var capabilities: SmartwatchCapabilities { SmartwatchCapabilities([.glucose, .history, .alerts, .loopStatus, .therapy]).union(remoteActions) }
+
+    /// The remote actions Luped Remote (and the watchface) can send.
+    public static let remoteActions: SmartwatchCapabilities = [.remoteMute, .remoteCarbs, .remoteBolus, .remoteOverride, .remoteTempTarget]
 
     /// Only what the watch shows: loop status while the loop ring shows (every
     /// shown line, and None with Last Loop on) or Luped Remote is on (it always
@@ -43,6 +45,7 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     /// nothing else.
     public var requestedCapabilities: SmartwatchCapabilities {
         var requested: SmartwatchCapabilities = [.glucose, .history, .alerts]
+        requested.formUnion(Self.remoteActions)
         if settings.hostNeedsLoopStatus { requested.insert(.loopStatus) }
         if settings.needsTherapy { requested.insert(.therapy) }
         return requested
@@ -63,7 +66,7 @@ public final class LupedSmartwatchManager: SmartwatchManager {
             lockedSettings.value = newValue
             Task { @MainActor in
                 self.transportIfStarted?.settings = newValue
-                self.transportIfStarted?.issuesBolusKey = self.effectiveCapabilities.contains(.remoteBolus)
+                self.transportIfStarted?.issuesBolusKey = self.bolusKeyAllowed
             }
             smartwatchManagerDelegate?.smartwatchManagerDidUpdateState(self)
             // The host fills only what is requested; ask it for a snapshot with the new set.
@@ -93,6 +96,13 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     }
     var savedDiagnostics: SavedDiagnostics? { lockedDiagnostics.value }
     private let lockedDiagnostics: Locked<SavedDiagnostics?>
+
+    /// Whether the watch gets a bolus key: the plugin declares `.remoteBolus`
+    /// and the host's user allows boluses from the watch (the snapshot's
+    /// `permittedActions`), so the remote dims Bolus otherwise.
+    @MainActor var bolusKeyAllowed: Bool {
+        effectiveCapabilities.contains(.remoteBolus) && latestSnapshot?.permittedActions.contains(.remoteBolus) == true
+    }
 
     @MainActor var latestSnapshot: SmartwatchStatusSnapshot? {
         didSet { snapshotCount += 1 }
@@ -222,7 +232,7 @@ public final class LupedSmartwatchManager: SmartwatchManager {
             self?.requestBolus(units, forced: forced, grams: grams, requestedAt: requestedAt)
         }
         // A session key only while the host may take boluses from this watch.
-        transport.issuesBolusKey = effectiveCapabilities.contains(.remoteBolus)
+        transport.issuesBolusKey = bolusKeyAllowed
         transport.carbsRequested = { [weak self] grams, requestedAt in
             self?.requestCarbs(grams, requestedAt: requestedAt)
         }
@@ -251,6 +261,7 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     @MainActor
     public func watchDataDidUpdate(_ snapshot: SmartwatchStatusSnapshot) {
         latestSnapshot = snapshot
+        transport.issuesBolusKey = bolusKeyAllowed
         Task { await transport.refresh() }
     }
 
