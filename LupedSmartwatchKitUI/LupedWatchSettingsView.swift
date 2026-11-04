@@ -117,59 +117,83 @@ struct LupedWatchSettingsView: View {
     }
 }
 
-/// The watchface UUID, which most people never change.
+/// The watchface and Luped Remote UUIDs, which most people never change.
 struct LupedAdvancedSettingsView: View {
     @ObservedObject var model: LupedSettingsModel
+
+    var body: some View {
+        List {
+            LupedUUIDSection(
+                title: LocalizedString("Watchface UUID", comment: "Header for the Pebble watchface UUID"),
+                restoreTitle: LocalizedString("Use Luped CGM Watchface", comment: "Button restoring the default Pebble watchface UUID"),
+                footer: LocalizedString("The UUID from the watchface's package.json. The watchface must use Luped's AppMessage keys and must not use PebbleKit JS.", comment: "Footer explaining the Pebble watchface UUID"),
+                defaultUUID: LupedSettings.defaultWatchfaceUUID,
+                uuid: $model.settings.watchfaceUUID
+            )
+            LupedUUIDSection(
+                title: LocalizedString("Luped Remote UUID", comment: "Header for the Luped Remote UUID"),
+                restoreTitle: LocalizedString("Use Luped Remote", comment: "Button restoring the default Luped Remote UUID"),
+                footer: model.settings.remoteUUID == model.settings.watchfaceUUID
+                    ? LocalizedString("This is the watchface's UUID, so Luped Remote gets no connection of its own. Use a different one.", comment: "Footer when the Luped Remote UUID equals the watchface UUID")
+                    : LocalizedString("The UUID from Luped Remote's package.json, for a build of your own. It must differ from the watchface's.", comment: "Footer explaining the Luped Remote UUID"),
+                defaultUUID: LupedSettings.defaultRemoteUUID,
+                uuid: $model.settings.remoteUUID
+            )
+        }
+        .insetGroupedListStyle()
+        .navigationTitle(LocalizedString("Advanced", comment: "Title of the advanced Pebble settings screen"))
+    }
+}
+
+/// One app UUID: edit, save, or go back to the default.
+struct LupedUUIDSection: View {
+    let title: String
+    let restoreTitle: String
+    let footer: String
+    let defaultUUID: UUID
+    @Binding var uuid: UUID
     @State private var draft = ""
 
-    private var defaultUUID: String { LupedSettings.defaultWatchfaceUUID.uuidString.lowercased() }
+    private var defaultText: String { defaultUUID.uuidString.lowercased() }
 
     private var draftUUID: UUID? {
         UUID(uuidString: draft.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    private var hasUnsavedDraft: Bool {
-        draftUUID != model.settings.watchfaceUUID
-    }
-
     var body: some View {
-        List {
-            Section {
-                TextField(defaultUUID, text: $draft)
-                    .font(.body.monospaced())
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .onSubmit(save)
-                if hasUnsavedDraft {
-                    Button(LocalizedString("Save", comment: "Button saving the Pebble watchface UUID"), action: save)
-                        .disabled(draftUUID == nil)
-                }
-                if model.settings.watchfaceUUID != LupedSettings.defaultWatchfaceUUID {
-                    Button(LocalizedString("Use Luped CGM Watchface", comment: "Button restoring the default Pebble watchface UUID")) {
-                        draft = defaultUUID
-                        save()
-                    }
-                }
-            } header: {
-                Text(LocalizedString("Watchface UUID", comment: "Header for the Pebble watchface UUID"))
-            } footer: {
-                if draftUUID == nil {
-                    Text(String(format: LocalizedString("Enter a UUID such as %@.", comment: "Footer shown for an invalid Pebble watchface UUID (1: example UUID)"), defaultUUID))
-                        .foregroundColor(.red)
-                } else {
-                    Text(LocalizedString("The UUID from the watchface's package.json. The watchface must use Luped's AppMessage keys and must not use PebbleKit JS.", comment: "Footer explaining the Pebble watchface UUID"))
+        Section {
+            TextField(defaultText, text: $draft)
+                .font(.body.monospaced())
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .onSubmit(save)
+            if draftUUID != uuid {
+                Button(LocalizedString("Save", comment: "Button saving the Pebble watchface UUID"), action: save)
+                    .disabled(draftUUID == nil)
+            }
+            if uuid != defaultUUID {
+                Button(restoreTitle) {
+                    draft = defaultText
+                    save()
                 }
             }
+        } header: {
+            Text(title)
+        } footer: {
+            if draftUUID == nil {
+                Text(String(format: LocalizedString("Enter a UUID such as %@.", comment: "Footer shown for an invalid Pebble watchface UUID (1: example UUID)"), defaultText))
+                    .foregroundColor(.red)
+            } else {
+                Text(footer)
+            }
         }
-        .insetGroupedListStyle()
-        .navigationTitle(LocalizedString("Advanced", comment: "Title of the advanced Pebble settings screen"))
-        .onAppear { draft = model.settings.watchfaceUUID.uuidString.lowercased() }
+        .onAppear { draft = uuid.uuidString.lowercased() }
     }
 
     private func save() {
-        guard let uuid = draftUUID else { return }
-        model.settings.watchfaceUUID = uuid
-        draft = uuid.uuidString.lowercased()
+        guard let new = draftUUID else { return }
+        uuid = new
+        draft = new.uuidString.lowercased()
     }
 }
 
