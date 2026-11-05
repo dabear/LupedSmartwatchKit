@@ -36,7 +36,8 @@ extension LupedSmartwatchManager {
                 let request = SmartwatchAlertMuteRequest(duration: duration, requestedAt: requestedAt)
                 let end = try await delegate.smartwatchManager(self, requestAlertMute: request)
                 let time = DateFormatter.localizedString(from: end, dateStyle: .none, timeStyle: .short)
-                logNote("\(Self.hostName) alerts muted from the watch until \(time)", kind: .info)
+                // A duration of 0 (mute:cancel) ends the mute.
+                logNote(duration > 0 ? "\(Self.hostName) alerts muted from the watch until \(time)" : "\(Self.hostName) alerts unmuted from the watch at \(time)", kind: .info)
                 transport.sendResult("mute:ok")
             } catch {
                 logNote("\(Self.hostName) refused the watch's mute request (\(error)); check Allow Mute from Watch in \(Self.hostName)'s settings", kind: .error)
