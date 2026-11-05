@@ -228,16 +228,16 @@ public final class LupedSmartwatchManager: SmartwatchManager {
         transport.alertMuteRequested = { [weak self] duration, requestedAt in
             self?.requestAlertMute(duration, requestedAt: requestedAt)
         }
-        transport.bolusRequested = { [weak self] units, forced, grams, requestedAt in
-            self?.requestBolus(units, forced: forced, grams: grams, requestedAt: requestedAt)
+        transport.bolusRequested = { [weak self] units, forced, grams, absorption, requestedAt in
+            self?.requestBolus(units, forced: forced, grams: grams, absorption: Self.absorption(absorption), requestedAt: requestedAt)
         }
-        transport.bolusRecommendationRequested = { [weak self] grams in
-            self?.requestBolusRecommendation(grams)
+        transport.bolusRecommendationRequested = { [weak self] grams, absorption in
+            self?.requestBolusRecommendation(grams, absorption: Self.absorption(absorption))
         }
         // A session key only while the host may take boluses from this watch.
         transport.issuesBolusKey = bolusKeyAllowed
-        transport.carbsRequested = { [weak self] grams, requestedAt in
-            self?.requestCarbs(grams, requestedAt: requestedAt)
+        transport.carbsRequested = { [weak self] grams, absorption, requestedAt in
+            self?.requestCarbs(grams, absorption: Self.absorption(absorption), requestedAt: requestedAt)
         }
         transport.overrideRequested = { [weak self] action, requestedAt in
             self?.requestOverride(action, requestedAt: requestedAt)

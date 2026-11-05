@@ -95,7 +95,7 @@ extension LupedSmartwatchManager {
     /// host's policy decides: permission, request and context age, maximum
     /// bolus, recommendation (skipped when `forced`) and rate limits.
     @MainActor
-    func requestBolus(_ units: Double, forced: Bool = false, grams: Double? = nil, requestedAt: Date) {
+    func requestBolus(_ units: Double, forced: Bool = false, grams: Double? = nil, absorption: SmartwatchCarbAbsorption? = nil, requestedAt: Date) {
         let action = forced ? "signedforcedbolus" : "signedbolus"
         // Answers the request: its carbs first if it had any, then the bolus.
         let answer = { [transport] (carbs: String?, bolus: String, reason: LupedResultReason?) in
@@ -123,7 +123,7 @@ extension LupedSmartwatchManager {
             if let grams {
                 logNote(String(format: "Asking %@ to add %g g of carbs from the watch before the bolus", Self.hostName, grams), kind: .info)
                 do {
-                    let added = try await delegate.smartwatchManager(self, requestCarbEntry: SmartwatchCarbEntryRequest(grams: grams, requestedAt: requestedAt))
+                    let added = try await delegate.smartwatchManager(self, requestCarbEntry: SmartwatchCarbEntryRequest(grams: grams, requestedAt: requestedAt, absorption: absorption))
                     logNote(String(format: "%@ added %g g of carbs requested from the watch", Self.hostName, added), kind: .info)
                     transport.sendResult("carbs:ok")
                 } catch {
@@ -160,12 +160,18 @@ extension LupedSmartwatchManager {
         }
     }
 
+    /// LoopKit's absorption for the watch's (fast, medium or slow); `nil` keeps
+    /// the host's default.
+    nonisolated static func absorption(_ absorption: LupedCarbAbsorption?) -> SmartwatchCarbAbsorption? {
+        absorption.flatMap { SmartwatchCarbAbsorption(rawValue: $0.rawValue) }
+    }
+
     /// Answers Luped Remote's question before a bolus: what the host would
     /// recommend with the carbs about to go with it (0 for none). Nothing is
     /// added or delivered; the host answers only while it takes boluses from
     /// this watch.
     @MainActor
-    func requestBolusRecommendation(_ grams: Double) {
+    func requestBolusRecommendation(_ grams: Double, absorption: SmartwatchCarbAbsorption? = nil) {
         guard effectiveCapabilities.contains(.remoteBolus) else {
             logNote("Bolus recommendation request ignored: \(capabilityMismatch(.remoteBolus, named: "remoteBolus"))", kind: .error)
             transport.sendBolusRecommendationRefusal(grams: grams, outcome: "ignored", reason: nil)
@@ -178,7 +184,7 @@ extension LupedSmartwatchManager {
         }
         Task { @MainActor in
             do {
-                let recommendation = try await delegate.smartwatchManager(self, recommendBolusFor: SmartwatchBolusRecommendationRequest(grams: grams))
+                let recommendation = try await delegate.smartwatchManager(self, recommendBolusFor: SmartwatchBolusRecommendationRequest(grams: grams, absorption: absorption))
                 logNote(String(format: "%@ recommends %.2f U with %g g of carbs", Self.hostName, recommendation.units, recommendation.grams), kind: .info)
                 transport.sendBolusRecommendation(grams: recommendation.grams, units: recommendation.units, maximumBolus: recommendation.maximumBolus)
             } catch {
@@ -207,7 +213,7 @@ extension LupedSmartwatchManager {
     /// Asks the host to add the carb entry the watch chose, and logs the outcome.
     /// The host decides: permission and rate limit.
     @MainActor
-    func requestCarbs(_ grams: Double, requestedAt: Date?) {
+    func requestCarbs(_ grams: Double, absorption: SmartwatchCarbAbsorption? = nil, requestedAt: Date?) {
         guard effectiveCapabilities.contains(.remoteCarbs) else {
             logNote("Carb request from the watch ignored: \(capabilityMismatch(.remoteCarbs, named: "remoteCarbs"))", kind: .error)
             transport.sendResult("carbs:ignored")
@@ -226,7 +232,7 @@ extension LupedSmartwatchManager {
         logNote(String(format: "Asking %@ to add %g g of carbs from the watch", Self.hostName, grams), kind: .info)
         Task { @MainActor in
             do {
-                let request = SmartwatchCarbEntryRequest(grams: grams, requestedAt: requestedAt)
+                let request = SmartwatchCarbEntryRequest(grams: grams, requestedAt: requestedAt, absorption: absorption)
                 let grams = try await delegate.smartwatchManager(self, requestCarbEntry: request)
                 logNote(String(format: "%@ added %g g of carbs requested from the watch", Self.hostName, grams), kind: .info)
                 transport.sendResult("carbs:ok")
