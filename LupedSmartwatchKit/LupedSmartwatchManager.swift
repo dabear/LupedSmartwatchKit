@@ -341,8 +341,15 @@ public final class LupedSmartwatchManager: SmartwatchManager {
                     eventualGlucose: $0.eventualGlucose,
                     correctionRange: $0.correctionRange
                 )
-            }
+            },
+            // For Luped Remote's preset list; nil (Loop's temp targets) hides that kind.
+            overridePresets: snapshot.overridePresets.map(Self.lupedPresets),
+            tempTargetPresets: snapshot.tempTargetPresets.map(Self.lupedPresets)
         )
+    }
+
+    static func lupedPresets(_ presets: [SmartwatchPreset]) -> [LupedPreset] {
+        presets.map { LupedPreset(id: $0.id, name: $0.name, isActive: $0.isActive) }
     }
 
     /// A note of the plugin's own, for the in-app communication log and the host's
