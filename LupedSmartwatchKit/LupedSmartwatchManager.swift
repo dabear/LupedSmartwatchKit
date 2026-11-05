@@ -231,6 +231,9 @@ public final class LupedSmartwatchManager: SmartwatchManager {
         transport.bolusRequested = { [weak self] units, forced, grams, requestedAt in
             self?.requestBolus(units, forced: forced, grams: grams, requestedAt: requestedAt)
         }
+        transport.bolusRecommendationRequested = { [weak self] grams in
+            self?.requestBolusRecommendation(grams)
+        }
         // A session key only while the host may take boluses from this watch.
         transport.issuesBolusKey = bolusKeyAllowed
         transport.carbsRequested = { [weak self] grams, requestedAt in

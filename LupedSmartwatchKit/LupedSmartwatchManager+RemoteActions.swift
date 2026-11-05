@@ -160,6 +160,35 @@ extension LupedSmartwatchManager {
         }
     }
 
+    /// Answers Luped Remote's question before a bolus: what the host would
+    /// recommend with the carbs about to go with it (0 for none). Nothing is
+    /// added or delivered; the host answers only while it takes boluses from
+    /// this watch.
+    @MainActor
+    func requestBolusRecommendation(_ grams: Double) {
+        guard effectiveCapabilities.contains(.remoteBolus) else {
+            logNote("Bolus recommendation request ignored: \(capabilityMismatch(.remoteBolus, named: "remoteBolus"))", kind: .error)
+            transport.sendBolusRecommendationRefusal(grams: grams, outcome: "ignored", reason: nil)
+            return
+        }
+        guard let delegate = smartwatchManagerDelegate else {
+            logNote("Bolus recommendation request not passed on: \(Self.hostName) isn't connected to this watch manager", kind: .error)
+            transport.sendBolusRecommendationRefusal(grams: grams, outcome: "failed", reason: nil)
+            return
+        }
+        Task { @MainActor in
+            do {
+                let recommendation = try await delegate.smartwatchManager(self, recommendBolusFor: SmartwatchBolusRecommendationRequest(grams: grams))
+                logNote(String(format: "%@ recommends %.2f U with %g g of carbs", Self.hostName, recommendation.units, recommendation.grams), kind: .info)
+                transport.sendBolusRecommendation(grams: recommendation.grams, units: recommendation.units, maximumBolus: recommendation.maximumBolus)
+            } catch {
+                logNote("\(Self.hostName) gave no bolus recommendation (\(error))", kind: .error)
+                let answer = Self.answer(for: error)
+                transport.sendBolusRecommendationRefusal(grams: grams, outcome: answer.outcome, reason: answer.reason)
+            }
+        }
+    }
+
     /// Asks the host for a snapshot and waits for it; `nil` after `timeout`.
     @MainActor
     private func nextSnapshot(timeout: TimeInterval) async -> SmartwatchStatusSnapshot? {

@@ -156,6 +156,28 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         XCTAssertEqual(delegate.logEntries.count, 1, "The host already logged its note")
     }
 
+    /// Luped Remote's recommendation request reaches the host with its carbs, and
+    /// the host's answer (or refusal, with its reason) goes back as RECOMMEND.
+    /// With no remote running here, the answer is logged as not sent.
+    func testBolusRecommendationRequestReachesTheHost() async throws {
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false))
+        let delegate = MockSmartwatchManagerDelegate()
+        manager.smartwatchManagerDelegate = delegate
+        let log = manager.transport.communicationLog
+        delegate.recommendation = .success(SmartwatchBolusRecommendation(units: 0.45, grams: 10, maximumBolus: 5, issuedAt: Date()))
+
+        manager.requestBolusRecommendation(10)
+        try await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(delegate.recommendationRequests, [10])
+        XCTAssertTrue(log.entries.contains { $0.message == "RECOMMEND 10:ok:0.45:5 not sent: Luped Remote is no longer running" }, log.text)
+
+        delegate.recommendation = .failure(SmartwatchBolusError.noRecentGlucose)
+        manager.requestBolusRecommendation(0)
+        try await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(delegate.recommendationRequests, [10, 0])
+        XCTAssertTrue(log.entries.contains { $0.message == "RECOMMEND 0:refused:no recent glucose not sent: Luped Remote is no longer running" }, log.text)
+    }
+
     /// Delete from the settings screen asks the host to remove the manager and
     /// switches the Bluetooth link off.
     func testDeleteRemovesTheManagerAndStopsTheLink() async {
@@ -375,6 +397,12 @@ private final class MockSmartwatchManagerDelegate: SmartwatchManagerDelegate {
     var refreshRequests = 0
     func smartwatchManagerRequestsRefresh(_ manager: SmartwatchManager) { refreshRequests += 1 }
     func smartwatchManager(_ manager: SmartwatchManager, didLogEvent event: SmartwatchDeviceLogEntry) { logEntries.append(event) }
+    var recommendationRequests: [Double] = []
+    var recommendation: Result<SmartwatchBolusRecommendation, Error> = .failure(SmartwatchBolusError.notAllowed)
+    func smartwatchManager(_ manager: SmartwatchManager, recommendBolusFor request: SmartwatchBolusRecommendationRequest) async throws -> SmartwatchBolusRecommendation {
+        recommendationRequests.append(request.grams)
+        return try recommendation.get()
+    }
 }
 
 final class LupedSetupProgressTests: XCTestCase {
