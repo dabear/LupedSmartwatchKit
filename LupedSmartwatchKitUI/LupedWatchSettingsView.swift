@@ -72,11 +72,13 @@ struct LupedWatchSettingsView: View {
                 Toggle(LocalizedString("Luped Remote", comment: "Toggle serving the Luped Remote watchapp"), isOn: $model.settings.remoteEnabled)
                 if model.settings.remoteEnabled {
                     LupedRemoteStatusRow(status: transport.status)
+                } else {
+                    Link(LocalizedString("Get Luped Remote from the Pebble app store", comment: "Link to Luped Remote's page in the Pebble app store"), destination: LupedSmartwatchManager.lupedRemoteStoreURL)
                 }
             } header: {
                 Text(LocalizedString("Watch App", comment: "Header for the Luped Remote settings"))
             } footer: {
-                Text(String(format: LocalizedString("Luped Remote is a Pebble watchapp from the Pebble app store. It shows the latest glucose, IOB and COB, and sends %1$@ the watchface's requests from the watch's buttons, each confirmed on the watch: mute alerts, add carbs, end an override or temp target, and a bolus where %1$@ allows one. %1$@ checks each request as it does the watchface's. On the watch, Settings → Quick Launch → Tap Up opens it with one press.", comment: "Footer for the Luped Remote settings (1: app name)"), LupedSmartwatchManager.hostName))
+                Text(String(format: LocalizedString("Luped Remote is a separate Pebble watchapp, off until you turn it on here: install it on the watch from the Pebble app's store (search for Luped Remote), then turn it on. It shows the latest glucose, IOB and COB, and sends %1$@ the watchface's requests from the watch's buttons, each confirmed on the watch: mute alerts, add carbs, end an override or temp target, and a bolus where %1$@ allows one. %1$@ checks each request as it does the watchface's. On the watch, Settings → Quick Launch → Tap Up opens it with one press.", comment: "Footer for the Luped Remote settings (1: app name)"), LupedSmartwatchManager.hostName))
             }
 
             Section {
@@ -204,9 +206,14 @@ struct LupedRemoteStatusRow: View {
     private var text: String {
         switch status.remoteLink {
         case .open:
-            return status.foreground == .remote
-                ? LocalizedString("Open on the watch", comment: "Luped Remote status: the watch runs it")
-                : LocalizedString("Connected", comment: "Luped Remote status: session open")
+            // The watch opens Luped Remote's session whether or not it is
+            // installed: only a message from it says it is.
+            if status.foreground == .remote {
+                return LocalizedString("Open on the watch", comment: "Luped Remote status: the watch runs it")
+            }
+            return status.remoteLastSeen == nil
+                ? LocalizedString("Not seen on the watch yet", comment: "Luped Remote status: the watch hasn't run it since the phone app started")
+                : LocalizedString("Installed, not open", comment: "Luped Remote status: it has run, but the watch runs the watchface now")
         case .connecting: return LocalizedString("Connecting", comment: "Pebble link status: session handshake in progress")
         case .waitingForWatch: return LocalizedString("Waiting for the watch", comment: "Pebble link status: no watch session")
         case .bluetoothUnavailable: return LocalizedString("Bluetooth unavailable", comment: "Pebble link status: Bluetooth off or unauthorized")

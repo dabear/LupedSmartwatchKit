@@ -72,7 +72,10 @@ final class LupedSmartwatchManagerTests: XCTestCase {
 
     // Luped Remote shows IOB and COB whatever the watchface shows.
     func testLupedRemoteAlwaysNeedsTheLoopStatus() {
+        // Luped Remote is off by default; turned on, it needs the loop status.
         let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, fullScreen: true))
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts])
+        manager.settings.remoteEnabled = true
         XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts, .loopStatus])
         manager.settings.remoteEnabled = false
         XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts])

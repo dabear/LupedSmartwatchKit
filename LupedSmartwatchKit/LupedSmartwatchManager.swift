@@ -256,6 +256,9 @@ public final class LupedSmartwatchManager: SmartwatchManager {
         return transport
     }
 
+    /// Luped Remote's page in the Pebble app store.
+    public static let lupedRemoteStoreURL = URL(string: "https://apps.rePebble.com/a7e1cad620804edbb52ee761")!
+
     /// Whether the app may keep the watch's Bluetooth service running in the background.
     public static func hasBluetoothPeripheralBackgroundMode() -> Bool {
         (Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String])?.contains("bluetooth-peripheral") == true
