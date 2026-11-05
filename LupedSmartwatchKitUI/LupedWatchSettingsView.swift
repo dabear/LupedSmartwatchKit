@@ -328,6 +328,20 @@ struct LupedLinkStatusSection: View {
                     .font(.footnote)
                     .foregroundColor(.secondary)
             }
+            // Whichever Luped app is running buzzes, beeps and lights up for 60 s.
+            Button(LocalizedString("Find My Pebble", comment: "Button making the Pebble watch buzz and beep so it can be found")) {
+                transport.findPebble()
+            }
+            .disabled(status.link != .open)
+            if let note = status.findNote {
+                Text(note)
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                Button(LocalizedString("Stop Finding", comment: "Button stopping Find My Pebble on the watch")) {
+                    transport.findPebble(seconds: 0)
+                }
+                .disabled(status.link != .open)
+            }
         } header: {
             Text(LocalizedString("Status", comment: "Header for the Pebble link status section"))
         } footer: {
