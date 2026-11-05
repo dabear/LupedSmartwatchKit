@@ -95,7 +95,7 @@ struct LupedSetupIntroView: View {
                             .font(.subheadline.weight(.semibold))
                     }
                     LupedChecklistRow(number: 3, text: LocalizedString("Make Luped CGM your watchface.", comment: "Pebble setup checklist: select the watchface"))
-                    LupedChecklistRow(number: 4, text: LocalizedString("If another diabetes app on this iPhone also has this Pebble added as a watch, remove it there first: the watch can only follow one of them. Keep the watch paired in the Pebble app.", comment: "Pebble setup checklist: only one diabetes app may use the watch; the Pebble app pairing stays"))
+                    LupedChecklistRow(number: 4, text: LocalizedString("Remove this Pebble from any other diabetes app first: the watch follows one app at a time.", comment: "Pebble setup checklist: only one diabetes app may use the watch; the Pebble app pairing stays"))
                 } header: {
                     Text(LocalizedString("Before You Start", comment: "Header for the Pebble setup checklist"))
                 } footer: {

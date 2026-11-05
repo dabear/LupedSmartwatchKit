@@ -61,6 +61,10 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     public var settings: LupedSettings {
         get { lockedSettings.value }
         set {
+            var newValue = newValue
+            // Learned from the watch, not chosen: a settings screen opened
+            // before the report mustn't clear it.
+            newValue.watchHasSpeaker = newValue.watchHasSpeaker || lockedSettings.value.watchHasSpeaker
             guard newValue != lockedSettings.value else { return }
             let requestedBefore = requestedCapabilities
             lockedSettings.value = newValue
@@ -224,6 +228,11 @@ public final class LupedSmartwatchManager: SmartwatchManager {
             guard let self else { return }
             self.lockedDiagnostics.value = SavedDiagnostics(json: json, receivedAt: receivedAt)
             self.smartwatchManagerDelegate?.smartwatchManagerDidUpdateState(self)
+        }
+        // A Luped app reported a speaker: offer the alarm sound from now on.
+        transport.speakerDidReport = { [weak self] _ in
+            guard let self, !self.settings.watchHasSpeaker else { return }
+            self.settings.watchHasSpeaker = true
         }
         transport.alertMuteRequested = { [weak self] duration, requestedAt in
             self?.requestAlertMute(duration, requestedAt: requestedAt)

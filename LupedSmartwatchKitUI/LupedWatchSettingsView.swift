@@ -62,10 +62,32 @@ struct LupedWatchSettingsView: View {
 
             Section {
                 Toggle(LocalizedString("Watch Alarms", comment: "Toggle enabling Pebble watch vibration alarms"), isOn: $model.settings.alarmsEnabled)
+                // Only for a watch that reported a speaker (Pebble Time 2).
+                if model.settings.watchHasSpeaker {
+                    Picker(LocalizedString("Alarm Sound", comment: "Picker choosing which glucose alarms the Pebble also sounds"), selection: $model.settings.alarmSound) {
+                        Text(LocalizedString("Off", comment: "Pebble alarm sound choice: no sound")).tag(LupedAlarmSound.off)
+                        Text(LocalizedString("Urgent Low Only", comment: "Pebble alarm sound choice: only urgent low alarms")).tag(LupedAlarmSound.urgentLow)
+                        Text(LocalizedString("All Glucose Alarms", comment: "Pebble alarm sound choice: every glucose alarm")).tag(LupedAlarmSound.all)
+                    }
+                    .disabled(!model.settings.alarmsEnabled)
+                    if !model.settings.alarmsEnabled {
+                        Text(LocalizedString("Turn on Watch Alarms to use Alarm Sound.", comment: "Pebble note: Alarm Sound needs Watch Alarms"))
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    } else if model.settings.alarmSound != .off {
+                        LupedQuietTimeNote(status: transport.status)
+                    }
+                }
             } header: {
                 Text(LocalizedString("Alarms", comment: "Header for the Pebble alarm settings"))
             } footer: {
-                Text(String(format: LocalizedString("The watch buzzes when %1$@ raises a glucose alert, and again each time %1$@ repeats it. While %1$@'s alerts are muted the watch stays silent too, critical alerts included. Turning Watch Alarms off silences the watch only; %1$@'s own alerts are unaffected.", comment: "Footer for the Pebble alarm settings (1: app name)"), LupedSmartwatchManager.hostName))
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(String(format: LocalizedString("The watch buzzes each time %1$@ alerts, and stays silent while %1$@'s alerts are muted. %1$@'s own alerts don't change.", comment: "Footer for the Pebble alarm settings (1: app name)"), LupedSmartwatchManager.hostName))
+                    // Only when a sound is chosen, and Watch Alarms is on.
+                    if model.settings.watchHasSpeaker, model.settings.alarmsEnabled, model.settings.alarmSound != .off {
+                        Text(LocalizedString("The watch also beeps for these alarms. Set its volume on the watch.", comment: "Footer for the Pebble alarm sound, shown while a sound is chosen"))
+                    }
+                }
             }
 
             Section {
@@ -78,7 +100,12 @@ struct LupedWatchSettingsView: View {
             } header: {
                 Text(LocalizedString("Watch App", comment: "Header for the Luped Remote settings"))
             } footer: {
-                Text(String(format: LocalizedString("Luped Remote is a separate Pebble watchapp, off until you turn it on here: install it on the watch from the Pebble app's store (search for Luped Remote), then turn it on. It shows the latest glucose, IOB and COB, and sends %1$@ the watchface's requests from the watch's buttons, each confirmed on the watch: mute alerts, add carbs, end an override or temp target, and a bolus where %1$@ allows one. %1$@ checks each request as it does the watchface's. On the watch, Settings → Quick Launch → Tap Up opens it with one press.", comment: "Footer for the Luped Remote settings (1: app name)"), LupedSmartwatchManager.hostName))
+                // Short, and only what the user needs for the toggle's state.
+                if model.settings.remoteEnabled {
+                    Text(String(format: LocalizedString("Allow each action in %1$@'s Watch Permissions. On the watch, Settings → Quick Launch → Tap Up opens it.", comment: "Footer for the Luped Remote settings while it is on (1: app name)"), LupedSmartwatchManager.hostName))
+                } else {
+                    Text(String(format: LocalizedString("A watch app for asking %1$@ to mute alerts, add carbs, use presets or give a bolus.", comment: "Footer for the Luped Remote settings while it is off (1: app name)"), LupedSmartwatchManager.hostName))
+                }
             }
 
             Section {
@@ -345,7 +372,7 @@ struct LupedLinkStatusSection: View {
         } header: {
             Text(LocalizedString("Status", comment: "Header for the Pebble link status section"))
         } footer: {
-            Text(String(format: LocalizedString("%@ sends glucose readings and its glucose alerts to the Luped CGM watchface over Bluetooth while the watch is paired with the Pebble app.", comment: "Footer explaining the Pebble smartwatch device (1: app name)"), LupedSmartwatchManager.hostName))
+            Text(String(format: LocalizedString("%@ sends your readings and alerts to the Pebble over Bluetooth.", comment: "Footer explaining the Pebble smartwatch device (1: app name)"), LupedSmartwatchManager.hostName))
         }
     }
 }
@@ -381,7 +408,7 @@ extension LupedSettings {
         let sentLine = String(format: LocalizedString("Sent to the watch: %@.", comment: "Pebble footer listing what the app sends to the watch (1: comma-separated list)"), sent.joined(separator: ", "))
         let battery: String
         if shownStatusLine == .iobAndCob {
-            battery = String(format: LocalizedString("Uses more watch battery: while %1$@ is dosing, IOB changes again after each dose, so the watch often gets two updates per reading.", comment: "Pebble footer: battery note for the IOB & COB status line (1: app name)"), host)
+            battery = String(format: LocalizedString("Uses a little more watch battery.", comment: "Pebble footer: battery note for the IOB & COB status line (1: app name)"), host)
         } else if showsLoopRing {
             battery = LocalizedString("The watch may get an occasional extra update between readings.", comment: "Pebble footer: battery note when loop status or therapy values are sent")
         } else {
@@ -400,6 +427,20 @@ extension LupedStatusLine {
         case .tempBasal: LocalizedString("Temp Basal", comment: "Pebble status line choice: current temp or scheduled basal rate")
         case .eventualGlucose: LocalizedString("Eventual Glucose", comment: "Pebble status line choice: predicted eventual glucose")
         case .sensitivityAndTarget: LocalizedString("ISF & Target", comment: "Pebble status line choice: insulin sensitivity and correction range")
+        }
+    }
+}
+
+/// Under Alarm Sound, only while the watch says it is in Quiet Time, which
+/// can mute the beep.
+struct LupedQuietTimeNote: View {
+    @ObservedObject var status: LupedLinkStatus
+
+    var body: some View {
+        if status.speaker?.quietTime == true {
+            Label(LocalizedString("Quiet Time on the watch may silence the beep.", comment: "Pebble note: the watch's Quiet Time is on and may mute the alarm sound"), systemImage: "moon.fill")
+                .font(.footnote)
+                .foregroundColor(.orange)
         }
     }
 }
