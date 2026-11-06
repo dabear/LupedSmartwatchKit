@@ -27,26 +27,26 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     }
     public static let localizedTitle = LocalizedString("Pebble", comment: "Title of the Luped Pebble watch manager")
 
-    /// The remote actions are declared and requested: Luped Remote sends them,
-    /// each confirmed on the watch, and the host still needs its user's Watch
-    /// Permissions for each one.
+    /// The remote capabilities are declared and requested: Luped Remote sends
+    /// their requests, each confirmed on the watch, and the host still needs its
+    /// user's Watch Permissions for each one.
     /// `.loopStatus` feeds the watch's IOB/COB strip and loop ring; `.therapy`
     /// the other status line choices (temp basal, eventual glucose, ISF & target).
-    public static var capabilities: SmartwatchCapabilities { SmartwatchCapabilities([.glucose, .history, .alerts, .loopStatus, .therapy]).union(remoteActions) }
+    public static var capabilities: SmartwatchCapabilities { SmartwatchCapabilities([.glucose, .history, .alerts, .loopStatus, .therapy]).union(remoteCapabilities) }
 
-    /// The remote actions Luped Remote can send. Empty, the plugin offers no
-    /// Luped Remote at all (`offersLupedRemote`).
-    public static let remoteActions: SmartwatchCapabilities = [.remoteMute, .remoteCarbs, .remoteBolus, .remoteOverride, .remoteTempTarget]
+    /// The remote capabilities declared for Luped Remote's requests. Empty, the
+    /// plugin declares none and offers no Luped Remote at all (`offersLupedRemote`).
+    public static let remoteCapabilities: SmartwatchCapabilities = [.remoteMute, .remoteCarbs, .remoteBolus, .remoteOverride, .remoteTempTarget]
 
-    /// Every remote action LoopKit has.
-    private static let everyRemoteAction: SmartwatchCapabilities = [.remoteMute, .remoteCarbs, .remoteBolus, .remoteOverride, .remoteTempTarget]
+    /// Every remote capability LoopKit has.
+    private static let everyRemoteCapability: SmartwatchCapabilities = [.remoteMute, .remoteCarbs, .remoteBolus, .remoteOverride, .remoteTempTarget]
 
-    /// Whether Luped Remote is offered: only with a remote action declared.
+    /// Whether Luped Remote is offered: only with a remote capability declared.
     /// Without one its settings are hidden and its watch session never opens.
     public static var offersLupedRemote: Bool { offersLupedRemote(declaring: capabilities) }
 
     static func offersLupedRemote(declaring capabilities: SmartwatchCapabilities) -> Bool {
-        !capabilities.isDisjoint(with: everyRemoteAction)
+        !capabilities.isDisjoint(with: everyRemoteCapability)
     }
 
     /// The settings the watch link uses: Luped Remote off when it isn't offered,
@@ -65,7 +65,7 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     /// nothing else.
     public var requestedCapabilities: SmartwatchCapabilities {
         var requested: SmartwatchCapabilities = [.glucose, .history, .alerts]
-        requested.formUnion(Self.remoteActions)
+        requested.formUnion(Self.remoteCapabilities)
         if Self.linkSettings(settings).hostNeedsLoopStatus { requested.insert(.loopStatus) }
         if settings.needsTherapy { requested.insert(.therapy) }
         return requested

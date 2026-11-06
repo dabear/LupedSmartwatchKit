@@ -36,28 +36,28 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, statusLine: .none, loopRing: false, remoteEnabled: false))
         let delegate = MockSmartwatchManagerDelegate()
         manager.smartwatchManagerDelegate = delegate
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts])
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts])
 
         manager.settings.loopRing = true
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts, .loopStatus], "None with the loop ring still needs the loop's age")
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts, .loopStatus], "None with the loop ring still needs the loop's age")
         XCTAssertEqual(delegate.refreshRequests, 1)
 
         manager.settings.statusLine = .iobAndCob
         XCTAssertEqual(delegate.refreshRequests, 1, "same capabilities: no new snapshot needed")
 
         manager.settings.statusLine = .eventualGlucose
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts, .loopStatus, .therapy])
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts, .loopStatus, .therapy])
         XCTAssertEqual(delegate.refreshRequests, 2)
 
         manager.settings.loopRing = false
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts, .loopStatus, .therapy], "a shown line keeps the loop ring")
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts, .loopStatus, .therapy], "a shown line keeps the loop ring")
         XCTAssertTrue(manager.requestedCapabilities.isSubset(of: LupedSmartwatchManager.capabilities))
 
         manager.settings.fullScreen = true
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts], "Large Glucose shows no status line or last loop")
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts], "Large Glucose shows no status line or last loop")
         XCTAssertEqual(delegate.refreshRequests, 3)
         manager.settings.fullScreen = false
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts, .loopStatus, .therapy], "the chosen line comes back")
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts, .loopStatus, .therapy], "the chosen line comes back")
     }
 
     // The host's errors become RESULT outcomes with a reason the watch shows.
@@ -74,17 +74,17 @@ final class LupedSmartwatchManagerTests: XCTestCase {
     func testLupedRemoteAlwaysNeedsTheLoopStatus() {
         // Luped Remote is off by default; turned on, it needs the loop status.
         let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, fullScreen: true))
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts])
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts])
         manager.settings.remoteEnabled = true
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts, .loopStatus])
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts, .loopStatus])
         manager.settings.remoteEnabled = false
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts])
+        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts])
     }
 
-    // Luped Remote is offered only with a remote action declared; without one
+    // Luped Remote is offered only with a remote capability declared; without one
     // its saved switch is ignored, so its watch session never opens.
-    func testLupedRemoteNeedsADeclaredRemoteAction() {
-        XCTAssertTrue(LupedSmartwatchManager.offersLupedRemote, "this build declares the remote actions")
+    func testLupedRemoteNeedsADeclaredRemoteCapability() {
+        XCTAssertTrue(LupedSmartwatchManager.offersLupedRemote, "this build declares the remote capabilities")
         XCTAssertFalse(LupedSmartwatchManager.offersLupedRemote(declaring: [.glucose, .history, .alerts, .loopStatus, .therapy]))
         XCTAssertTrue(LupedSmartwatchManager.offersLupedRemote(declaring: [.glucose, .remoteMute]))
 

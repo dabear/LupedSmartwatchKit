@@ -59,11 +59,11 @@ plugin requests only what its Display settings need (`requestedCapabilities`).
 Luped Remote, a separate watchapp, sends the requests; the watchface sends
 none. The plugin passes them to the host: alert mute (and ending it), carbs,
 bolus, a bolus recommendation, and override and temp target presets. It declares
-the matching capabilities (`LupedSmartwatchManager.remoteActions`), and the host
-still checks its own Watch Permissions and rules for every request.
+the matching remote capabilities (`LupedSmartwatchManager.remoteCapabilities`),
+and the host still checks its own Watch Permissions and rules for every request.
 
-Luped Remote is offered only while at least one remote action is declared
-(`offersLupedRemote`). With `remoteActions` empty, its Watch App section and its
+Luped Remote is offered only while at least one remote capability is declared
+(`offersLupedRemote`). With `remoteCapabilities` empty, its Watch App section and its
 UUID in Advanced are hidden, a saved Luped Remote switch is ignored, and its
 watch session is never opened.
 

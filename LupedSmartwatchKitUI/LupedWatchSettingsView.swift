@@ -90,7 +90,7 @@ struct LupedWatchSettingsView: View {
                 }
             }
 
-            // Only with a remote action declared (`offersLupedRemote`).
+            // Only with a remote capability declared (`offersLupedRemote`).
             if LupedSmartwatchManager.offersLupedRemote {
                 Section {
                     Toggle(LocalizedString("Luped Remote", comment: "Toggle serving the Luped Remote watchapp"), isOn: $model.settings.remoteEnabled)
