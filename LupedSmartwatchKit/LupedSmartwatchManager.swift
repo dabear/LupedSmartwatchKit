@@ -8,6 +8,7 @@
 @_exported import LupedKit
 import Foundation
 import LoopKit
+import UIKit
 
 /// Shows the host app's glucose on a Pebble running the Luped watchface, over
 /// LupedKit's direct Bluetooth link.
@@ -245,6 +246,12 @@ public final class LupedSmartwatchManager: SmartwatchManager {
         // Until a Luped app has reported a speaker, ask the watchface once per
         // session: it may have started before this watch was added.
         transport.asksForSpeaker = !settings.watchHasSpeaker
+        // While a reading waits for the loop result, iOS mustn't suspend the app,
+        // or the watch gets it only when the app is opened again.
+        transport.beginBackgroundTask = { name in
+            let task = BackgroundTask(name: name)
+            return { task.end() }
+        }
         // A Luped app reported a speaker: offer the alarm sound from now on.
         transport.speakerDidReport = { [weak self] _ in
             guard let self, !self.settings.watchHasSpeaker else { return }
@@ -394,6 +401,24 @@ public final class LupedSmartwatchManager: SmartwatchManager {
         case .info: type = .connection
         }
         smartwatchManagerDelegate?.smartwatchManager(self, didLogEvent: SmartwatchDeviceLogEntry(type: type, message: message, deviceIdentifier: settings.watchfaceUUID.uuidString.lowercased()))
+    }
+}
+
+/// One iOS background task, ended once: by its owner, or when iOS takes the time back.
+@MainActor
+private final class BackgroundTask {
+    private var identifier = UIBackgroundTaskIdentifier.invalid
+
+    init(name: String) {
+        identifier = UIApplication.shared.beginBackgroundTask(withName: name) { [weak self] in
+            self?.end()
+        }
+    }
+
+    func end() {
+        guard identifier != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(identifier)
+        identifier = .invalid
     }
 }
 
