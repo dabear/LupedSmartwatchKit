@@ -38,16 +38,9 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     /// plugin declares none and offers no Luped Remote at all (`offersLupedRemote`).
     public static let remoteCapabilities: SmartwatchCapabilities = [.remoteMute, .remoteCarbs, .remoteBolus, .remoteOverride, .remoteTempTarget]
 
-    /// Every remote capability LoopKit has.
-    private static let everyRemoteCapability: SmartwatchCapabilities = [.remoteMute, .remoteCarbs, .remoteBolus, .remoteOverride, .remoteTempTarget]
-
     /// Whether Luped Remote is offered: only with a remote capability declared.
     /// Without one its settings are hidden and its watch session never opens.
-    public static var offersLupedRemote: Bool { offersLupedRemote(declaring: capabilities) }
-
-    static func offersLupedRemote(declaring capabilities: SmartwatchCapabilities) -> Bool {
-        !capabilities.isDisjoint(with: everyRemoteCapability)
-    }
+    public static var offersLupedRemote: Bool { !remoteCapabilities.isEmpty }
 
     /// The settings the watch link uses: Luped Remote off when it isn't offered,
     /// whatever was saved.

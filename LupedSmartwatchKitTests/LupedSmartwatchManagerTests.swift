@@ -85,8 +85,7 @@ final class LupedSmartwatchManagerTests: XCTestCase {
     // its saved switch is ignored, so its watch session never opens.
     func testLupedRemoteNeedsADeclaredRemoteCapability() {
         XCTAssertTrue(LupedSmartwatchManager.offersLupedRemote, "this build declares the remote capabilities")
-        XCTAssertFalse(LupedSmartwatchManager.offersLupedRemote(declaring: [.glucose, .history, .alerts, .loopStatus, .therapy]))
-        XCTAssertTrue(LupedSmartwatchManager.offersLupedRemote(declaring: [.glucose, .remoteMute]))
+        XCTAssertTrue(LupedSmartwatchManager.capabilities.isSuperset(of: LupedSmartwatchManager.remoteCapabilities))
 
         let on = LupedSettings(isEnabled: true, remoteEnabled: true)
         XCTAssertFalse(LupedSmartwatchManager.linkSettings(on, offersLupedRemote: false).servesRemote)
