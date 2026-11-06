@@ -242,6 +242,9 @@ public final class LupedSmartwatchManager: SmartwatchManager {
             self.lockedDiagnostics.value = SavedDiagnostics(json: json, receivedAt: receivedAt)
             self.smartwatchManagerDelegate?.smartwatchManagerDidUpdateState(self)
         }
+        // Until a Luped app has reported a speaker, ask the watchface once per
+        // session: it may have started before this watch was added.
+        transport.asksForSpeaker = !settings.watchHasSpeaker
         // A Luped app reported a speaker: offer the alarm sound from now on.
         transport.speakerDidReport = { [weak self] _ in
             guard let self, !self.settings.watchHasSpeaker else { return }
