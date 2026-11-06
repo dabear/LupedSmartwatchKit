@@ -54,20 +54,25 @@ plugin requests only what its Display settings need (`requestedCapabilities`).
 - A watchface start is answered once, though Luped asks twice (Alloy's ready
   handshake, then its own `refresh`).
 
-## Requests from the watch (not declared yet)
+## Requests from Luped Remote
 
-The plugin passes the watch's requests to the host: alert mute, carbs, bolus,
-and override and temp target presets. It doesn't declare the capabilities yet:
-the Luped watchface has no screen for them, so each request is logged as
-ignored and never reaches the host. The host still checks its own Watch
-Permissions and rules for every request.
+Luped Remote, a separate watchapp, sends the requests; the watchface sends
+none. The plugin passes them to the host: alert mute (and ending it), carbs,
+bolus, a bolus recommendation, and override and temp target presets. It declares
+the matching capabilities (`LupedSmartwatchManager.remoteActions`), and the host
+still checks its own Watch Permissions and rules for every request.
+
+Luped Remote is offered only while at least one remote action is declared
+(`offersLupedRemote`). With `remoteActions` empty, its Watch App section and its
+UUID in Advanced are hidden, a saved Luped Remote switch is ignored, and its
+watch session is never opened.
 
 Boluses are only ever signed (elbbepTransport):
 
 - On every watchface start and Bluetooth session, and only while remote bolus is
   allowed, the phone gives the watch a random 256-bit session key
   (`COMMAND auth:v1:<sid>:<key>`). The watch keeps it in memory only.
-- The watch sends `signedbolus:<units>[:<grams>]` (or `signedforcedbolus:`)
+- The watch sends `signedbolus:<units>[:<grams>[:<absorption>]]`
   with `@<confirmedAt>#<sid>.<seq>.<mac>`: HMAC-SHA256 over every field,
   truncated to 16 bytes.
 - LupedKit checks the key, session, MAC (constant time), sequence, and that the

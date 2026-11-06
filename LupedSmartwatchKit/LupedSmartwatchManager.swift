@@ -27,15 +27,35 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     }
     public static let localizedTitle = LocalizedString("Pebble", comment: "Title of the Luped Pebble watch manager")
 
-    /// Every remote action is declared and requested (this local build only):
-    /// Luped Remote sends them, each confirmed on the watch, and the host still
-    /// needs its user's Watch Permissions for each one.
+    /// The remote actions are declared and requested: Luped Remote sends them,
+    /// each confirmed on the watch, and the host still needs its user's Watch
+    /// Permissions for each one.
     /// `.loopStatus` feeds the watch's IOB/COB strip and loop ring; `.therapy`
     /// the other status line choices (temp basal, eventual glucose, ISF & target).
     public static var capabilities: SmartwatchCapabilities { SmartwatchCapabilities([.glucose, .history, .alerts, .loopStatus, .therapy]).union(remoteActions) }
 
-    /// The remote actions Luped Remote (and the watchface) can send.
+    /// The remote actions Luped Remote can send. Empty, the plugin offers no
+    /// Luped Remote at all (`offersLupedRemote`).
     public static let remoteActions: SmartwatchCapabilities = [.remoteMute, .remoteCarbs, .remoteBolus, .remoteOverride, .remoteTempTarget]
+
+    /// Every remote action LoopKit has.
+    private static let everyRemoteAction: SmartwatchCapabilities = [.remoteMute, .remoteCarbs, .remoteBolus, .remoteOverride, .remoteTempTarget]
+
+    /// Whether Luped Remote is offered: only with a remote action declared.
+    /// Without one its settings are hidden and its watch session never opens.
+    public static var offersLupedRemote: Bool { offersLupedRemote(declaring: capabilities) }
+
+    static func offersLupedRemote(declaring capabilities: SmartwatchCapabilities) -> Bool {
+        !capabilities.isDisjoint(with: everyRemoteAction)
+    }
+
+    /// The settings the watch link uses: Luped Remote off when it isn't offered,
+    /// whatever was saved.
+    static func linkSettings(_ settings: LupedSettings, offersLupedRemote: Bool = offersLupedRemote) -> LupedSettings {
+        var settings = settings
+        settings.remoteEnabled = settings.remoteEnabled && offersLupedRemote
+        return settings
+    }
 
     /// Only what the watch shows: loop status while the loop ring shows (every
     /// shown line, and None with Last Loop on) or Luped Remote is on (it always
@@ -46,7 +66,7 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     public var requestedCapabilities: SmartwatchCapabilities {
         var requested: SmartwatchCapabilities = [.glucose, .history, .alerts]
         requested.formUnion(Self.remoteActions)
-        if settings.hostNeedsLoopStatus { requested.insert(.loopStatus) }
+        if Self.linkSettings(settings).hostNeedsLoopStatus { requested.insert(.loopStatus) }
         if settings.needsTherapy { requested.insert(.therapy) }
         return requested
     }
@@ -69,7 +89,7 @@ public final class LupedSmartwatchManager: SmartwatchManager {
             let requestedBefore = requestedCapabilities
             lockedSettings.value = newValue
             Task { @MainActor in
-                self.transportIfStarted?.settings = newValue
+                self.transportIfStarted?.settings = Self.linkSettings(newValue)
                 self.transportIfStarted?.issuesBolusKey = self.bolusKeyAllowed
             }
             smartwatchManagerDelegate?.smartwatchManagerDidUpdateState(self)
@@ -217,7 +237,7 @@ public final class LupedSmartwatchManager: SmartwatchManager {
         if let transportIfStarted {
             return transportIfStarted
         }
-        let transport = LupedTransport(hostName: Self.hostName, settings: settings)
+        let transport = LupedTransport(hostName: Self.hostName, settings: Self.linkSettings(settings))
         transport.diagnosticLog = { [weak self] kind, message in
             self?.logDeviceCommunication(message, kind: kind)
         }

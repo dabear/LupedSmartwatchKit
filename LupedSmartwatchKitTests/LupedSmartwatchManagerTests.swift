@@ -81,6 +81,19 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteActions), [.glucose, .history, .alerts])
     }
 
+    // Luped Remote is offered only with a remote action declared; without one
+    // its saved switch is ignored, so its watch session never opens.
+    func testLupedRemoteNeedsADeclaredRemoteAction() {
+        XCTAssertTrue(LupedSmartwatchManager.offersLupedRemote, "this build declares the remote actions")
+        XCTAssertFalse(LupedSmartwatchManager.offersLupedRemote(declaring: [.glucose, .history, .alerts, .loopStatus, .therapy]))
+        XCTAssertTrue(LupedSmartwatchManager.offersLupedRemote(declaring: [.glucose, .remoteMute]))
+
+        let on = LupedSettings(isEnabled: true, remoteEnabled: true)
+        XCTAssertFalse(LupedSmartwatchManager.linkSettings(on, offersLupedRemote: false).servesRemote)
+        XCTAssertFalse(LupedSmartwatchManager.linkSettings(on, offersLupedRemote: false).remoteEnabled, "nor asks the host for loop status for it")
+        XCTAssertTrue(LupedSmartwatchManager.linkSettings(on, offersLupedRemote: true).servesRemote)
+    }
+
     // A plugin can't obtain a capability it didn't declare: hosts act only on
     // effectiveCapabilities (declared ∩ requested).
     func testUndeclaredRequestedCapabilitiesAreIgnored() {

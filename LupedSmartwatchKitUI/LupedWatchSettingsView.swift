@@ -90,21 +90,24 @@ struct LupedWatchSettingsView: View {
                 }
             }
 
-            Section {
-                Toggle(LocalizedString("Luped Remote", comment: "Toggle serving the Luped Remote watchapp"), isOn: $model.settings.remoteEnabled)
-                if model.settings.remoteEnabled {
-                    LupedRemoteStatusRow(status: transport.status)
-                } else {
-                    Link(LocalizedString("Get Luped Remote from the Pebble app store", comment: "Link to Luped Remote's page in the Pebble app store"), destination: LupedSmartwatchManager.lupedRemoteStoreURL)
-                }
-            } header: {
-                Text(LocalizedString("Watch App", comment: "Header for the Luped Remote settings"))
-            } footer: {
-                // Short, and only what the user needs for the toggle's state.
-                if model.settings.remoteEnabled {
-                    Text(String(format: LocalizedString("Allow each action in %1$@'s Watch Permissions. On the watch, Settings → Quick Launch → Tap Up opens it.", comment: "Footer for the Luped Remote settings while it is on (1: app name)"), LupedSmartwatchManager.hostName))
-                } else {
-                    Text(String(format: LocalizedString("A watch app for asking %1$@ to mute alerts, add carbs, use presets or give a bolus.", comment: "Footer for the Luped Remote settings while it is off (1: app name)"), LupedSmartwatchManager.hostName))
+            // Only with a remote action declared (`offersLupedRemote`).
+            if LupedSmartwatchManager.offersLupedRemote {
+                Section {
+                    Toggle(LocalizedString("Luped Remote", comment: "Toggle serving the Luped Remote watchapp"), isOn: $model.settings.remoteEnabled)
+                    if model.settings.remoteEnabled {
+                        LupedRemoteStatusRow(status: transport.status)
+                    } else {
+                        Link(LocalizedString("Get Luped Remote from the Pebble app store", comment: "Link to Luped Remote's page in the Pebble app store"), destination: LupedSmartwatchManager.lupedRemoteStoreURL)
+                    }
+                } header: {
+                    Text(LocalizedString("Watch App", comment: "Header for the Luped Remote settings"))
+                } footer: {
+                    // Short, and only what the user needs for the toggle's state.
+                    if model.settings.remoteEnabled {
+                        Text(String(format: LocalizedString("Allow each action in %1$@'s Watch Permissions. On the watch, Settings → Quick Launch → Tap Up opens it.", comment: "Footer for the Luped Remote settings while it is on (1: app name)"), LupedSmartwatchManager.hostName))
+                    } else {
+                        Text(String(format: LocalizedString("A watch app for asking %1$@ to mute alerts, add carbs, use presets or give a bolus.", comment: "Footer for the Luped Remote settings while it is off (1: app name)"), LupedSmartwatchManager.hostName))
+                    }
                 }
             }
 
@@ -159,15 +162,17 @@ struct LupedAdvancedSettingsView: View {
                 defaultUUID: LupedSettings.defaultWatchfaceUUID,
                 uuid: $model.settings.watchfaceUUID
             )
-            LupedUUIDSection(
-                title: LocalizedString("Luped Remote UUID", comment: "Header for the Luped Remote UUID"),
-                restoreTitle: LocalizedString("Use Luped Remote", comment: "Button restoring the default Luped Remote UUID"),
-                footer: model.settings.remoteUUID == model.settings.watchfaceUUID
-                    ? LocalizedString("This is the watchface's UUID, so Luped Remote gets no connection of its own. Use a different one.", comment: "Footer when the Luped Remote UUID equals the watchface UUID")
-                    : LocalizedString("The UUID from Luped Remote's package.json, for a build of your own. It must differ from the watchface's.", comment: "Footer explaining the Luped Remote UUID"),
-                defaultUUID: LupedSettings.defaultRemoteUUID,
-                uuid: $model.settings.remoteUUID
-            )
+            if LupedSmartwatchManager.offersLupedRemote {
+                LupedUUIDSection(
+                    title: LocalizedString("Luped Remote UUID", comment: "Header for the Luped Remote UUID"),
+                    restoreTitle: LocalizedString("Use Luped Remote", comment: "Button restoring the default Luped Remote UUID"),
+                    footer: model.settings.remoteUUID == model.settings.watchfaceUUID
+                        ? LocalizedString("This is the watchface's UUID, so Luped Remote gets no connection of its own. Use a different one.", comment: "Footer when the Luped Remote UUID equals the watchface UUID")
+                        : LocalizedString("The UUID from Luped Remote's package.json, for a build of your own. It must differ from the watchface's.", comment: "Footer explaining the Luped Remote UUID"),
+                    defaultUUID: LupedSettings.defaultRemoteUUID,
+                    uuid: $model.settings.remoteUUID
+                )
+            }
         }
         .insetGroupedListStyle()
         .navigationTitle(LocalizedString("Advanced", comment: "Title of the advanced Pebble settings screen"))
