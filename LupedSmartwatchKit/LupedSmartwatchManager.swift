@@ -261,15 +261,15 @@ public final class LupedSmartwatchManager: SmartwatchManager {
             self?.requestAlertMute(duration, requestedAt: requestedAt)
         }
         transport.bolusRequested = { [weak self] units, forced, grams, absorption, requestedAt in
-            self?.requestBolus(units, forced: forced, grams: grams, absorption: Self.absorption(absorption), requestedAt: requestedAt)
+            self?.requestBolus(units, forced: forced, grams: grams, absorption: self?.hostAbsorption(absorption), requestedAt: requestedAt)
         }
         transport.bolusRecommendationRequested = { [weak self] grams, absorption in
-            self?.requestBolusRecommendation(grams, absorption: Self.absorption(absorption))
+            self?.requestBolusRecommendation(grams, absorption: self?.hostAbsorption(absorption))
         }
         // A session key only while the host may take boluses from this watch.
         transport.issuesBolusKey = bolusKeyAllowed
         transport.carbsRequested = { [weak self] grams, absorption, requestedAt in
-            self?.requestCarbs(grams, absorption: Self.absorption(absorption), requestedAt: requestedAt)
+            self?.requestCarbs(grams, absorption: self?.hostAbsorption(absorption), requestedAt: requestedAt)
         }
         transport.overrideRequested = { [weak self] action, requestedAt in
             self?.requestOverride(action, requestedAt: requestedAt)
@@ -376,7 +376,9 @@ public final class LupedSmartwatchManager: SmartwatchManager {
             },
             // For Luped Remote's preset list; nil (Loop's temp targets) hides that kind.
             overridePresets: snapshot.overridePresets.map(Self.lupedPresets),
-            tempTargetPresets: snapshot.tempTargetPresets.map(Self.lupedPresets)
+            tempTargetPresets: snapshot.tempTargetPresets.map(Self.lupedPresets),
+            // Without it (Trio), Luped Remote doesn't ask how fast carbs are absorbed.
+            usesCarbAbsorption: snapshot.usesCarbAbsorption
         )
     }
 

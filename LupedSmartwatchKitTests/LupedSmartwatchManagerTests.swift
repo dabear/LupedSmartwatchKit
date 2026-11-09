@@ -228,6 +228,21 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         XCTAssertEqual(snapshot.alertEvent, manager.alertEvent)
     }
 
+    /// A host without per-entry carb absorption (Trio) tells Luped Remote not to
+    /// ask, and an absorption an older watch still sends is left out.
+    func testHostWithoutCarbAbsorption() throws {
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false))
+        let reading = sample(120, minutes: 5)
+        manager.latestSnapshot = SmartwatchStatusSnapshot(displayUnit: .milligramsPerDeciliter, glucose: reading, glucoseHistory: [reading])
+        XCTAssertEqual(try XCTUnwrap(manager.lupedSnapshot()).usesCarbAbsorption, true, "LoopKit's default: hosts use it")
+        XCTAssertEqual(manager.hostAbsorption(.slow), .slow)
+
+        manager.latestSnapshot?.usesCarbAbsorption = false
+        XCTAssertEqual(try XCTUnwrap(manager.lupedSnapshot()).usesCarbAbsorption, false)
+        XCTAssertNil(manager.hostAbsorption(.slow))
+        XCTAssertNil(manager.hostAbsorption(nil))
+    }
+
     /// Luped declares loop status (IOB/COB and the loop ring) and therapy (the
     /// other status line choices) but handles no URL. Remote actions stay off
     /// until requests are secured.

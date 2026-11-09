@@ -167,6 +167,18 @@ extension LupedSmartwatchManager {
         absorption.flatMap { SmartwatchCarbAbsorption(rawValue: $0.rawValue) }
     }
 
+    /// The watch's absorption for the host, left out when the host doesn't use
+    /// one (an older Luped Remote still asks for it).
+    @MainActor
+    func hostAbsorption(_ absorption: LupedCarbAbsorption?) -> SmartwatchCarbAbsorption? {
+        guard let absorption else { return nil }
+        guard latestSnapshot?.usesCarbAbsorption != false else {
+            logNote("\(Self.hostName) doesn't use carb absorption: the watch's \(absorption.rawValue) is left out", kind: .info)
+            return nil
+        }
+        return Self.absorption(absorption)
+    }
+
     /// Answers Luped Remote's question before a bolus: what the host would
     /// recommend with the carbs about to go with it (0 for none). Nothing is
     /// added or delivered; the host answers only while it takes boluses from
