@@ -81,6 +81,16 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts])
     }
 
+    // A bolus with carbs is refused whole when its bolus couldn't follow the
+    // carbs within the request window: never carbs without their bolus.
+    func testABolusWithCarbsNeedsTimeForTheBolusAfterTheCarbs() {
+        let window = SmartwatchRequestWindow.standard
+        let now = Date()
+        XCTAssertTrue(LupedSmartwatchManager.leavesTimeForBolusAfterCarbs(requestedAt: now.addingTimeInterval(-2), now: now, window: window))
+        XCTAssertTrue(LupedSmartwatchManager.leavesTimeForBolusAfterCarbs(requestedAt: now.addingTimeInterval(-12), now: now, window: window))
+        XCTAssertFalse(LupedSmartwatchManager.leavesTimeForBolusAfterCarbs(requestedAt: now.addingTimeInterval(-13), now: now, window: window), "the bolus could be too old once the carbs are in")
+    }
+
     // With Luped Remote off the host gets no remote capability, so it refuses
     // remote requests and no bolus key goes to the watch.
     @MainActor func testRemoteCapabilitiesOnlyWhileLupedRemoteIsOn() {

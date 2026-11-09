@@ -90,6 +90,16 @@ extension LupedSmartwatchManager {
 
     /// The longest wait for the host's snapshot after adding a request's carbs.
     static let carbsSnapshotTimeout: TimeInterval = 15
+    /// Time left for the host's own checks once that snapshot is in.
+    static let bolusCheckMargin: TimeInterval = 3
+
+    /// Whether a bolus with carbs confirmed at `requestedAt` is young enough
+    /// that its bolus can still reach the host within `window` after the carbs
+    /// and the wait for the next snapshot. If not, neither is asked for: carbs
+    /// without their bolus would be worse than nothing.
+    nonisolated static func leavesTimeForBolusAfterCarbs(requestedAt: Date, now: Date, window: SmartwatchRequestWindow) -> Bool {
+        now.timeIntervalSince(requestedAt) + carbsSnapshotTimeout + bolusCheckMargin <= window.maximumAge
+    }
 
     /// Asks the host for a signed bolus the watch chose (LupedKit has checked the
     /// signature, timing and resends), and logs the outcome. With carbs, like
@@ -121,6 +131,11 @@ extension LupedSmartwatchManager {
         guard let delegate = smartwatchManagerDelegate else {
             logNote("Bolus request not passed on: \(Self.hostName) isn't connected to this watch manager", kind: .error)
             answer("failed", "failed", nil)
+            return
+        }
+        if grams != nil, !Self.leavesTimeForBolusAfterCarbs(requestedAt: requestedAt, now: Date(), window: remoteActionLimits.requestWindow) {
+            logNote(String(format: "Bolus request with carbs refused: confirmed %.0f s ago, too late for the bolus to follow the carbs within %.0f s, so neither is added", Date().timeIntervalSince(requestedAt), remoteActionLimits.requestWindow.maximumAge), kind: .error)
+            answer("refused", "refused", .tooOld)
             return
         }
         Task { @MainActor in
