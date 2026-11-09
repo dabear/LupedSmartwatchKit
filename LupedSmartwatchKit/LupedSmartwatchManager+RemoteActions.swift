@@ -71,7 +71,10 @@ extension LupedSmartwatchManager {
             return ("refused", .inProgress)
         case SmartwatchPresetError.unknownPreset:
             return ("refused", .noSuchPreset)
-        case SmartwatchCarbEntryError.failed, SmartwatchPresetError.failed, SmartwatchBolusError.deliveryFailed:
+        case SmartwatchBolusError.deliveryFailed:
+            // The pump may have delivered some or all of it.
+            return ("failed", .checkPump)
+        case SmartwatchCarbEntryError.failed, SmartwatchPresetError.failed:
             return ("failed", nil)
         default:
             return ("refused", nil)

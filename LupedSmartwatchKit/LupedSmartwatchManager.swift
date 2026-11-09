@@ -55,12 +55,15 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     /// shown line, and None with Last Loop on) or Luped Remote is on (it always
     /// shows IOB and COB), therapy values for the lines the phone formats from
     /// them; with the Large Glucose layout and Luped Remote off neither. History
-    /// is always requested: the delta and trend come from it. The host fills
+    /// is always requested: the delta and trend come from it. The remote
+    /// capabilities only while Luped Remote is on, so with it off the host
+    /// refuses every remote request and no bolus key is issued. The host fills
     /// nothing else.
     public var requestedCapabilities: SmartwatchCapabilities {
         var requested: SmartwatchCapabilities = [.glucose, .history, .alerts]
-        requested.formUnion(Self.remoteCapabilities)
-        if Self.linkSettings(settings).hostNeedsLoopStatus { requested.insert(.loopStatus) }
+        let linkSettings = Self.linkSettings(settings)
+        if linkSettings.remoteEnabled { requested.formUnion(Self.remoteCapabilities) }
+        if linkSettings.hostNeedsLoopStatus { requested.insert(.loopStatus) }
         if settings.needsTherapy { requested.insert(.therapy) }
         return requested
     }

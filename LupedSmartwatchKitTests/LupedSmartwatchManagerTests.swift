@@ -66,7 +66,7 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         XCTAssertTrue(LupedSmartwatchManager.answer(for: SmartwatchBolusError.exceedsMaximumBolus) == ("refused", .overMaximum))
         XCTAssertTrue(LupedSmartwatchManager.answer(for: SmartwatchAlertMuteError.notAllowed) == ("refused", .notAllowed))
         XCTAssertTrue(LupedSmartwatchManager.answer(for: SmartwatchPresetError.unknownPreset) == ("refused", .noSuchPreset))
-        XCTAssertTrue(LupedSmartwatchManager.answer(for: SmartwatchBolusError.deliveryFailed("pump")) == ("failed", nil))
+        XCTAssertTrue(LupedSmartwatchManager.answer(for: SmartwatchBolusError.deliveryFailed("pump")) == ("failed", .checkPump), "the pump may have delivered some of it")
         XCTAssertTrue(LupedSmartwatchManager.answer(for: SmartwatchBolusError.refusedByHost("no")) == ("refused", nil))
     }
 
@@ -79,6 +79,21 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts, .loopStatus])
         manager.settings.remoteEnabled = false
         XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts])
+    }
+
+    // With Luped Remote off the host gets no remote capability, so it refuses
+    // remote requests and no bolus key goes to the watch.
+    @MainActor func testRemoteCapabilitiesOnlyWhileLupedRemoteIsOn() {
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false))
+        XCTAssertTrue(manager.requestedCapabilities.isDisjoint(with: LupedSmartwatchManager.remoteCapabilities))
+        XCTAssertTrue(manager.effectiveCapabilities.isDisjoint(with: LupedSmartwatchManager.remoteCapabilities))
+        manager.latestSnapshot = SmartwatchStatusSnapshot(displayUnit: .milligramsPerDeciliter, glucose: nil, glucoseHistory: [], permittedActions: [.remoteBolus])
+        XCTAssertFalse(manager.bolusKeyAllowed)
+        manager.settings.remoteEnabled = true
+        XCTAssertTrue(manager.requestedCapabilities.isSuperset(of: LupedSmartwatchManager.remoteCapabilities))
+        XCTAssertTrue(manager.bolusKeyAllowed)
+        manager.settings.remoteEnabled = false
+        XCTAssertFalse(manager.bolusKeyAllowed)
     }
 
     // Luped Remote is offered only with a remote capability declared; without one
@@ -175,7 +190,7 @@ final class LupedSmartwatchManagerTests: XCTestCase {
     /// the host's answer (or refusal, with its reason) goes back as RECOMMEND.
     /// With no remote running here, the answer is logged as not sent.
     func testBolusRecommendationRequestReachesTheHost() async throws {
-        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false))
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, remoteEnabled: true))
         let delegate = MockSmartwatchManagerDelegate()
         manager.smartwatchManagerDelegate = delegate
         let log = manager.transport.communicationLog
