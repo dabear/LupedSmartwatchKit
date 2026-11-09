@@ -409,11 +409,26 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         XCTAssertEqual(shown.receivedAt, receivedAt)
     }
 
-    func testAlertEventWraps() throws {
+    /// The event wraps from 999 to 1, never to 0: 0 can't be sent negative, so an
+    /// alert on event 0 buzzed without the alarm sound.
+    func testAlertEventWrapsPastZero() throws {
         let manager = try XCTUnwrap(LupedSmartwatchManager(rawState: ["alertEvent": LupedSmartwatchManager.alertEventModulus - 1]))
         manager.smartwatchManagerDelegate = MockSmartwatchManagerDelegate()
         manager.watchAlertDidIssue(SmartwatchAlert(identifier: SmartwatchAlertIdentifier("glucose.high"), level: .warning, title: nil, body: nil, issuedAt: Date()))
-        XCTAssertEqual(manager.alertEvent, 0)
+        XCTAssertEqual(manager.alertEvent, 1)
+    }
+
+    func testAlertEventsAreNeverZero() {
+        XCTAssertEqual(LupedSmartwatchManager.nextAlertEvent(after: 0), 1, "from a manager saved before any alert")
+        var event = Int.random(in: 1..<LupedSmartwatchManager.alertEventModulus)
+        for _ in 0..<2 * LupedSmartwatchManager.alertEventModulus {
+            event = LupedSmartwatchManager.nextAlertEvent(after: event)
+            XCTAssertTrue((1..<LupedSmartwatchManager.alertEventModulus).contains(event), "event \(event)")
+        }
+        for _ in 0..<200 {
+            let manager = LupedSmartwatchManager()
+            XCTAssertNotEqual(manager.alertEvent, 0, "a new manager starts at 0")
+        }
     }
 }
 

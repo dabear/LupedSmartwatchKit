@@ -102,8 +102,15 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     /// Saved in `rawState` so a relaunch can't land on the value the watch last saw.
     var alertEvent: Int { lockedAlertEvent.value }
     private let lockedAlertEvent: Locked<Int>
-    /// The alert event wraps here; the watch compares for inequality.
+    /// Alert events run from 1 to `alertEventModulus - 1` and wrap back to 1; the
+    /// watch compares for inequality. 0 means no alert yet and is never an
+    /// event: the alarm sound is asked for by sending the event negative.
     static let alertEventModulus = 1000
+
+    /// The event after `event`: 1 after 0 and after the last one.
+    static func nextAlertEvent(after event: Int) -> Int {
+        event % (alertEventModulus - 1) + 1
+    }
 
     /// The watch's last diagnostics report. The watchface reports about once an
     /// hour; saving the report in `rawState` lets the watch info show right after a
@@ -190,7 +197,7 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     /// landing on it would not buzz.
     public init(settings: LupedSettings = LupedSettings(isEnabled: true)) {
         lockedSettings = Locked(settings)
-        lockedAlertEvent = Locked(Int.random(in: 0..<Self.alertEventModulus))
+        lockedAlertEvent = Locked(Int.random(in: 1..<Self.alertEventModulus))
         lockedDiagnostics = Locked(nil)
         lockedActiveAlerts = Locked([:])
     }
@@ -307,7 +314,7 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     public func watchAlertDidIssue(_ alert: SmartwatchAlert) {
         activeAlerts[alert.identifier] = alert
         // Every fire (first or repeat) is a new event for the watch to buzz on.
-        lockedAlertEvent.value = (lockedAlertEvent.value + 1) % Self.alertEventModulus
+        lockedAlertEvent.value = Self.nextAlertEvent(after: lockedAlertEvent.value)
         smartwatchManagerDelegate?.smartwatchManagerDidUpdateState(self)
         logNote("\(Self.hostName) alert issued [\(alert.level)], event \(alertEvent): \(alert.title ?? "") \(alert.body ?? "")", kind: .info)
         // Resend the snapshot so the watch sees the new alert level/event and buzzes.
