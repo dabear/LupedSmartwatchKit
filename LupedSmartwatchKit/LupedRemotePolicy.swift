@@ -66,8 +66,10 @@ extension LupedSmartwatchManager {
         maximumGlucoseAge: 15 * 60,
         minimumInterval: 5 * 60,
         dailyLimitInMaximumBoluses: 3,
-        // LupedKit doesn't carry the token: the plugin quotes the context it
-        // issued last, which must still be the current one.
+        // On: the watch doesn't send the token back, so the plugin quotes the
+        // context it issued last. The check then refuses a bolus once a newer
+        // context replaced that one (or none is current), as for a watch that
+        // echoes it.
         requiresContextToken: true,
         capsAtRecommendation: true
     )
@@ -112,6 +114,12 @@ struct LupedRemoteHistory {
     /// between boluses but not the daily total.
     static func bolusAttempted(at date: Date, in deliveries: [SmartwatchBolusPolicy.Delivery]) -> [SmartwatchBolusPolicy.Delivery] {
         deliveries + [SmartwatchBolusPolicy.Delivery(date: date, units: 0)]
+    }
+
+    /// The attempt at `attemptedAt` was refused before the pump was asked: it
+    /// doesn't count for the time between boluses.
+    static func bolusAttemptRefused(at attemptedAt: Date, in deliveries: [SmartwatchBolusPolicy.Delivery]) -> [SmartwatchBolusPolicy.Delivery] {
+        deliveries.filter { $0 != SmartwatchBolusPolicy.Delivery(date: attemptedAt, units: 0) }
     }
 
     /// The attempt at `attemptedAt` delivered `units`: they count toward the daily total too.

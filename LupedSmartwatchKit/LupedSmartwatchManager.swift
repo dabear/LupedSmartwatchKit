@@ -13,8 +13,9 @@ import UIKit
 /// Shows the host app's glucose on a Pebble running the Luped watchface, over
 /// LupedKit's direct Bluetooth link.
 ///
-/// The host sends a snapshot as soon as a new reading is stored; it is
-/// forwarded to the watch right away. Alerts are host-issued: the host
+/// The host says what changed (`hostDataDidChange`) as soon as a new reading is
+/// stored and again after the loop runs; the plugin reads what the watch shows
+/// and forwards it to the watch right away. Alerts are host-issued: the host
 /// evaluates its own alerts and forwards them, rather than the watch evaluating
 /// thresholds itself.
 public final class LupedSmartwatchManager: SmartwatchManager {
@@ -28,20 +29,10 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     }
     public static let localizedTitle = LocalizedString("Pebble", comment: "Title of the Luped Pebble watch manager")
 
-    /// The remote capabilities are declared and requested: Luped Remote sends
-    /// their requests, each confirmed on the watch, and the host still needs its
-    /// user's Watch Permissions for each one.
-    /// `.loopStatus` feeds the watch's IOB/COB strip and loop ring; `.therapy`
-    /// the other status line choices (temp basal, eventual glucose, ISF & target).
-    public static var capabilities: SmartwatchCapabilities { SmartwatchCapabilities([.glucose, .history, .alerts, .loopStatus, .therapy]).union(remoteCapabilities) }
-
-    /// The remote capabilities declared for Luped Remote's requests. Empty, the
-    /// plugin declares none and offers no Luped Remote at all (`offersLupedRemote`).
-    public static let remoteCapabilities: SmartwatchCapabilities = [.remoteMute, .remoteCarbs, .remoteBolus, .remoteOverride, .remoteTempTarget]
-
-    /// Whether Luped Remote is offered: only with a remote capability declared.
-    /// Without one its settings are hidden and its watch session never opens.
-    public static var offersLupedRemote: Bool { !remoteCapabilities.isEmpty }
+    /// Whether Luped Remote is offered: its requests, each confirmed on the
+    /// watch, need the user's switch in the Pebble settings for each action.
+    /// Set to false, its settings are hidden and its watch session never opens.
+    public static let offersLupedRemote = true
 
     /// The settings the watch link uses: Luped Remote off when it isn't offered,
     /// whatever was saved.
@@ -51,23 +42,30 @@ public final class LupedSmartwatchManager: SmartwatchManager {
         return settings
     }
 
-    /// Only what the watch shows: loop status while the loop ring shows (every
-    /// shown line, and None with Last Loop on) or Luped Remote is on (it always
-    /// shows IOB and COB), therapy values for the lines the phone formats from
-    /// them; with the Large Glucose layout and Luped Remote off neither. History
-    /// is always requested: the delta and trend come from it. The remote
-    /// capabilities only while Luped Remote is on, so with it off the host
-    /// refuses every remote request and no bolus key is issued. The host fills
-    /// nothing else.
-    public var requestedCapabilities: SmartwatchCapabilities {
-        var requested: SmartwatchCapabilities = [.glucose, .history, .alerts]
-        let linkSettings = Self.linkSettings(settings)
-        if linkSettings.remoteEnabled { requested.formUnion(Self.remoteCapabilities) }
-        if linkSettings.hostNeedsLoopStatus { requested.insert(.loopStatus) }
-        if settings.needsTherapy { requested.insert(.therapy) }
-        return requested
+    /// What the plugin reads from the host: only what the watch shows.
+    struct HostReads: Equatable {
+        /// The loop state, while the loop ring shows (every shown line, and None
+        /// with Last Loop on), Luped Remote is on (it always shows IOB and COB),
+        /// or the status line shows eventual glucose.
+        var loopState: Bool
+        /// Therapy values for the status lines the phone formats from them.
+        var therapy: Bool
+        /// Luped Remote's preset lists and bolus context, while it is on.
+        var remote: Bool
     }
 
+    /// With the Large Glucose layout and Luped Remote off, neither loop state
+    /// nor therapy. Glucose is always read: the delta and trend come from it.
+    static func hostReads(for settings: LupedSettings) -> HostReads {
+        let linkSettings = linkSettings(settings)
+        return HostReads(
+            loopState: linkSettings.hostNeedsLoopStatus || settings.needsTherapy,
+            therapy: settings.needsTherapy,
+            remote: linkSettings.remoteEnabled
+        )
+    }
+
+    var hostReads: HostReads { Self.hostReads(for: settings) }
 
     public var pluginIdentifier: String { Self.pluginIdentifier }
     public var localizedTitle: String { Self.localizedTitle }
@@ -83,20 +81,37 @@ public final class LupedSmartwatchManager: SmartwatchManager {
             // before the report mustn't clear it.
             newValue.watchHasSpeaker = newValue.watchHasSpeaker || lockedSettings.value.watchHasSpeaker
             guard newValue != lockedSettings.value else { return }
-            let requestedBefore = requestedCapabilities
+            let readsBefore = hostReads
             lockedSettings.value = newValue
+            // Only what the watch shows is read: read again for what it shows now.
+            let readsChanged = hostReads != readsBefore
             Task { @MainActor in
                 self.transportIfStarted?.settings = Self.linkSettings(newValue)
                 self.transportIfStarted?.issuesBolusKey = self.bolusKeyAllowed
+                if readsChanged {
+                    self.hostDataDidChange(.all)
+                }
             }
             smartwatchManagerDelegate?.smartwatchManagerDidUpdateState(self)
-            // The host fills only what is requested; ask it for a snapshot with the new set.
-            if requestedCapabilities != requestedBefore {
-                smartwatchManagerDelegate?.smartwatchManagerRequestsRefresh(self)
-            }
         }
     }
     private let lockedSettings: Locked<LupedSettings>
+
+    /// Which Luped Remote requests the user allows, saved in `rawState`. All off
+    /// until turned on, and off again when the watch is deleted.
+    public var remotePermissions: LupedRemotePermissions {
+        get { lockedRemotePermissions.value }
+        set {
+            guard newValue != lockedRemotePermissions.value else { return }
+            lockedRemotePermissions.value = newValue
+            Task { @MainActor in
+                self.transportIfStarted?.issuesBolusKey = self.bolusKeyAllowed
+                self.logNote("Allowed from Luped Remote: \(newValue.allowedDescription)", kind: .info)
+            }
+            smartwatchManagerDelegate?.smartwatchManagerDidUpdateState(self)
+        }
+    }
+    private let lockedRemotePermissions: Locked<LupedRemotePermissions>
 
     /// The watch's alert event (DATA index 9): advanced on every host alert fire,
     /// including repeats of an alert that is still active, so the watch buzzes in
@@ -125,29 +140,37 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     var savedDiagnostics: SavedDiagnostics? { lockedDiagnostics.value }
     private let lockedDiagnostics: Locked<SavedDiagnostics?>
 
-    /// Whether the watch gets a bolus key: the plugin declares `.remoteBolus`
-    /// and the host's user allows boluses from the watch (the snapshot's
-    /// `permittedActions`), so the remote dims Bolus otherwise.
+    /// Whether the watch gets a bolus key: Luped Remote is on and the user
+    /// allows boluses from it, so the remote dims Bolus otherwise.
     @MainActor var bolusKeyAllowed: Bool {
-        effectiveCapabilities.contains(.remoteBolus) && latestSnapshot?.permittedActions.contains(.remoteBolus) == true
+        Self.linkSettings(settings).remoteEnabled && remotePermissions.bolus
     }
 
-    @MainActor var latestSnapshot: SmartwatchStatusSnapshot? {
-        didSet { snapshotCount += 1 }
-    }
-    /// Snapshots received, so a request can wait for the next one.
-    @MainActor var snapshotCount = 0
+    /// What the plugin last read from the host, for the next `LupedSnapshot`.
+    @MainActor var hostData = LupedHostData()
+    /// The host reads queued so far; each runs after the previous one.
+    @MainActor var hostReadTask: Task<Void, Never>?
+    /// Changes the host signalled that aren't read yet, and the timer that reads them.
+    @MainActor var pendingHostChanges: SmartwatchHostDataChange = []
+    @MainActor var pendingHostChangesTask: Task<Void, Never>?
+    /// Hands out the bolus context and tracks the watch bolus being delivered.
+    @MainActor var bolusContextIssuer = SmartwatchBolusContextIssuer()
+    /// The context last issued, which a bolus request quotes. It stays after a
+    /// bolus spent it, so a resend of that bolus is recognised as in progress.
+    @MainActor var bolusContext: SmartwatchBolusContext?
+    /// Luped Remote's recent boluses and last carb entry, for the rate limits.
+    @MainActor var remoteHistory = LupedRemoteHistory(defaults: .standard)
     @MainActor var transportIfStarted: LupedTransport?
 
     /// Host-issued alerts currently showing, by identifier. The watch colours its
     /// ring and buzzes from them; neither the plugin nor the watch has thresholds.
     /// Saved in `rawState`: after a relaunch the host doesn't issue an alert again
     /// for an episode it already alerted on, but it still retracts it.
-    @MainActor var activeAlerts: [SmartwatchAlertIdentifier: SmartwatchAlert] {
+    @MainActor var activeAlerts: [String: LupedHostAlert] {
         get { lockedActiveAlerts.value }
         set { lockedActiveAlerts.value = newValue }
     }
-    private let lockedActiveAlerts: Locked<[SmartwatchAlertIdentifier: SmartwatchAlert]>
+    private let lockedActiveAlerts: Locked<[String: LupedHostAlert]>
 
     /// When this manager started tracking alerts, for the communication log.
     /// Alerts active at a relaunch come back from `rawState`.
@@ -159,7 +182,7 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     /// The watch's alert state for a host alert: 1 low, 2 urgent low, 3 high,
     /// 4 predicted low; `nil` for anything that isn't a glucose alert. From the
     /// type the host sets, not its alert identifiers, which differ per host.
-    static func alertState(for alert: SmartwatchAlert) -> Int? {
+    static func alertState(for alert: LupedHostAlert) -> Int? {
         switch alert.glucoseAlertType {
         case .urgentLow: 2
         case .low: 1
@@ -187,10 +210,10 @@ public final class LupedSmartwatchManager: SmartwatchManager {
             let since = DateFormatter.localizedString(from: alertTrackingStarted, dateStyle: .none, timeStyle: .short)
             return "no active alerts from \(Self.hostName) since \(since); muted alerts aren't sent"
         }
-        let priority = { (alert: SmartwatchAlert) in Self.alertState(for: alert).flatMap(Self.alertStatePriority.firstIndex(of:)) ?? Int.max }
+        let priority = { (alert: LupedHostAlert) in Self.alertState(for: alert).flatMap(Self.alertStatePriority.firstIndex(of:)) ?? Int.max }
         let titles = activeAlerts.values
             .sorted { priority($0) < priority($1) }
-            .map { $0.title ?? $0.identifier.value }
+            .map { $0.title ?? $0.identifier }
             .joined(separator: ", ")
         return titles
     }
@@ -200,6 +223,7 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     /// landing on it would not buzz.
     public init(settings: LupedSettings = LupedSettings(isEnabled: true)) {
         lockedSettings = Locked(settings)
+        lockedRemotePermissions = Locked(.none)
         lockedAlertEvent = Locked(Int.random(in: 1..<Self.alertEventModulus))
         lockedDiagnostics = Locked(nil)
         lockedActiveAlerts = Locked([:])
@@ -207,6 +231,7 @@ public final class LupedSmartwatchManager: SmartwatchManager {
 
     public init?(rawState: RawStateValue) {
         lockedSettings = Locked(LupedSettings(rawValue: rawState["settings"] as? LupedSettings.RawValue ?? [:]))
+        lockedRemotePermissions = Locked(LupedRemotePermissions(rawValue: rawState["remotePermissions"] as? LupedRemotePermissions.RawValue ?? [:]))
         lockedAlertEvent = Locked((rawState["alertEvent"] as? Int ?? 0) % Self.alertEventModulus)
         if let json = rawState["watchDiagnostics"] as? String,
            let receivedAt = rawState["watchDiagnosticsReceivedAt"] as? TimeInterval {
@@ -214,12 +239,12 @@ public final class LupedSmartwatchManager: SmartwatchManager {
         } else {
             lockedDiagnostics = Locked(nil)
         }
-        let savedAlerts = (rawState["activeAlerts"] as? [[String: Any]] ?? []).compactMap(SmartwatchAlert.init(savedState:))
+        let savedAlerts = (rawState["activeAlerts"] as? [[String: Any]] ?? []).compactMap(LupedHostAlert.init(savedState:))
         lockedActiveAlerts = Locked(Dictionary(savedAlerts.map { ($0.identifier, $0) }, uniquingKeysWith: { _, last in last }))
     }
 
     public var rawState: RawStateValue {
-        var state: RawStateValue = ["settings": settings.rawValue, "alertEvent": alertEvent]
+        var state: RawStateValue = ["settings": settings.rawValue, "remotePermissions": remotePermissions.rawValue, "alertEvent": alertEvent]
         if let saved = savedDiagnostics {
             state["watchDiagnostics"] = saved.json
             state["watchDiagnosticsReceivedAt"] = saved.receivedAt.timeIntervalSince1970
@@ -271,15 +296,15 @@ public final class LupedSmartwatchManager: SmartwatchManager {
             self?.requestAlertMute(duration, requestedAt: requestedAt)
         }
         transport.bolusRequested = { [weak self] units, forced, grams, absorption, requestedAt in
-            self?.requestBolus(units, forced: forced, grams: grams, absorption: self?.hostAbsorption(absorption), requestedAt: requestedAt)
+            self?.requestBolus(units, forced: forced, grams: grams, absorption: absorption, requestedAt: requestedAt)
         }
         transport.bolusRecommendationRequested = { [weak self] grams, absorption in
-            self?.requestBolusRecommendation(grams, absorption: self?.hostAbsorption(absorption))
+            self?.requestBolusRecommendation(grams, absorption: absorption)
         }
-        // A session key only while the host may take boluses from this watch.
+        // A session key only while the user allows boluses from this watch.
         transport.issuesBolusKey = bolusKeyAllowed
         transport.carbsRequested = { [weak self] grams, absorption, requestedAt in
-            self?.requestCarbs(grams, absorption: self?.hostAbsorption(absorption), requestedAt: requestedAt)
+            self?.requestCarbs(grams, absorption: absorption, requestedAt: requestedAt)
         }
         transport.overrideRequested = { [weak self] action, requestedAt in
             self?.requestOverride(action, requestedAt: requestedAt)
@@ -307,14 +332,8 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     }
 
     @MainActor
-    public func watchDataDidUpdate(_ snapshot: SmartwatchStatusSnapshot) {
-        latestSnapshot = snapshot
-        transport.issuesBolusKey = bolusKeyAllowed
-        Task { await transport.refresh() }
-    }
-
-    @MainActor
-    public func watchAlertDidIssue(_ alert: SmartwatchAlert) {
+    public func watchAlertDidIssue(_ alert: Alert, glucoseAlertType: SmartwatchGlucoseAlertType?, issuedAt: Date) {
+        let alert = LupedHostAlert(alert, glucoseAlertType: glucoseAlertType, issuedAt: issuedAt)
         activeAlerts[alert.identifier] = alert
         // Every fire (first or repeat) is a new event for the watch to buzz on.
         lockedAlertEvent.value = Self.nextAlertEvent(after: lockedAlertEvent.value)
@@ -325,8 +344,8 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     }
 
     @MainActor
-    public func watchAlertDidRetract(_ identifier: SmartwatchAlertIdentifier) {
-        guard let alert = activeAlerts.removeValue(forKey: identifier) else { return }
+    public func watchAlertDidRetract(_ identifier: Alert.Identifier) {
+        guard let alert = activeAlerts.removeValue(forKey: identifier.value) else { return }
         smartwatchManagerDelegate?.smartwatchManagerDidUpdateState(self)
         logNote("\(Self.hostName) alert retracted: \(alert.title ?? identifier.value)", kind: .info)
         Task { await transport.refresh() }
@@ -339,61 +358,24 @@ public final class LupedSmartwatchManager: SmartwatchManager {
         transport.communicationLog.append(.info, "\(Self.hostName): \(message)")
     }
 
+    /// Stops the link and turns every Luped Remote request off, so a watch added
+    /// later starts with none allowed. The rate-limit history is kept
+    /// (`LupedRemoteHistory`). The plugin issues no alerts of its own, so there
+    /// are none to retract.
     public func delete() async {
+        // First, so a switch change still on its way can't give the key back.
+        lockedRemotePermissions.value = .none
+        smartwatchManagerDelegate?.smartwatchManagerDidUpdateState(self)
         // Removes the Bluetooth service and stops retries.
-        await MainActor.run { transportIfStarted?.settings.isEnabled = false }
-        await smartwatchManagerDelegate?.smartwatchManagerWantsDeletion(self)
-    }
-
-    @MainActor
-    func lupedSnapshot() -> LupedSnapshot? {
-        guard let snapshot = latestSnapshot else {
-            return nil
+        await MainActor.run {
+            // No read after the host dropped the manager.
+            pendingHostChangesTask?.cancel()
+            pendingHostChangesTask = nil
+            pendingHostChanges = []
+            transportIfStarted?.issuesBolusKey = false
+            transportIfStarted?.settings.isEnabled = false
         }
-        let start = Date(timeIntervalSinceNow: -LupedPayload.historyInterval)
-        let samples = snapshot.glucoseHistory.filter { $0.date >= start }
-        let readings = samples
-            .filter { !$0.wasUserEntered && !$0.isDisplayOnly }
-            .map { sample in
-                LupedReading(
-                    date: sample.date,
-                    milligramsPerDeciliter: sample.milligramsPerDeciliter,
-                    trend: sample.trend.map(LupedTrend.init)
-                )
-            }
-        return LupedSnapshot(
-            readings: readings,
-            storedSampleCount: samples.count,
-            unit: snapshot.displayUnit == .millimolesPerLiter ? .millimolesPerLiter : .milligramsPerDeciliter,
-            hostAlertState: hostAlertState,
-            hostAlertReason: hostAlertReason,
-            alertEvent: alertEvent,
-            // IOB, COB and the loop's age and mode for the watch's strip and loop ring.
-            loopStatus: LupedLoopStatus(
-                insulinOnBoard: snapshot.insulinOnBoard,
-                carbsOnBoard: snapshot.carbsOnBoard,
-                lastLoopCompleted: snapshot.lastLoopCompleted,
-                isClosedLoop: snapshot.isClosedLoop
-            ),
-            therapy: snapshot.therapy.map {
-                LupedTherapy(
-                    tempBasalRate: $0.tempBasalRate,
-                    scheduledBasalRate: $0.scheduledBasalRate,
-                    insulinSensitivity: $0.insulinSensitivity,
-                    eventualGlucose: $0.eventualGlucose,
-                    correctionRange: $0.correctionRange
-                )
-            },
-            // For Luped Remote's preset list; nil (Loop's temp targets) hides that kind.
-            overridePresets: snapshot.overridePresets.map(Self.lupedPresets),
-            tempTargetPresets: snapshot.tempTargetPresets.map(Self.lupedPresets),
-            // Without it (Trio), Luped Remote doesn't ask how fast carbs are absorbed.
-            usesCarbAbsorption: snapshot.usesCarbAbsorption
-        )
-    }
-
-    static func lupedPresets(_ presets: [SmartwatchPreset]) -> [LupedPreset] {
-        presets.map { LupedPreset(id: $0.id, name: $0.name, isActive: $0.isActive) }
+        await smartwatchManagerDelegate?.smartwatchManagerWantsDeletion(self)
     }
 
     /// A note of the plugin's own, for the in-app communication log and the host's
@@ -405,14 +387,14 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     }
 
     func logDeviceCommunication(_ message: String, kind: LupedCommunicationLog.Kind) {
-        let type: SmartwatchDeviceLogEntry.EntryType
+        let type: DeviceLogEntryType
         switch kind {
         case .toWatch: type = .send
         case .fromWatch: type = .receive
         case .error: type = .error
         case .info: type = .connection
         }
-        smartwatchManagerDelegate?.smartwatchManager(self, didLogEvent: SmartwatchDeviceLogEntry(type: type, message: message, deviceIdentifier: settings.watchfaceUUID.uuidString.lowercased()))
+        smartwatchManagerDelegate?.deviceManager(self, logEventForDeviceIdentifier: settings.watchfaceUUID.uuidString.lowercased(), type: type, message: message, completion: nil)
     }
 }
 
@@ -447,28 +429,84 @@ extension LupedSmartwatchManager {
             "* layout: \(settings.fullScreen ? "Large Glucose" : "Graph")",
             "* statusLine: \(settings.statusLine.displayName)",
             "* lastLoop: \(settings.loopRing)",
+            "* lupedRemote: \(settings.remoteEnabled)",
+            "* allowedFromLupedRemote: \(remotePermissions.allowedDescription)",
         ].joined(separator: "\n")
     }
 }
 
-// MARK: - DeviceManager
+// MARK: - AlertResponder, AlertSoundVendor
 
-// Loop places the watch under Settings → Devices and routes its logs and alert
-// responses through the DeviceManager machinery. This conformance is kept out of
-// the core SmartwatchManager protocol so the plugin also builds for hosts (such
-// as Trio) that import it statically without a device seam.
-extension LupedSmartwatchManager: DeviceManager {
-    // Watches don't issue LoopKit alerts. Both AlertResponder forms are defaulted
-    // so the plugin builds against LoopKit variants that declare either one.
+// Loop registers the watch with its alert manager like a CGM or pump. The
+// plugin issues no alerts of its own (watch problems show in its settings and
+// log), so there is nothing to acknowledge and no sound to vendor.
+extension LupedSmartwatchManager {
     public func acknowledgeAlert(alertIdentifier: Alert.AlertIdentifier) async throws {}
     public func getSoundBaseURL() -> URL? { nil }
     public func getSounds() -> [Alert.Sound] { [] }
 }
 
-private extension SmartwatchAlert {
+extension LupedRemotePermissions {
+    /// The allowed requests, for logs, for example "bolus, carbs"; "none" when none is.
+    var allowedDescription: String {
+        let allowed = [(bolus, "bolus"), (carbs, "carbs"), (mute, "mute"), (overrides, "presets"), (tempTargets, "temp targets")]
+            .filter(\.0)
+            .map(\.1)
+        return allowed.isEmpty ? "none" : allowed.joined(separator: ", ")
+    }
+}
+
+/// A host alert showing on the watch.
+struct LupedHostAlert: Equatable {
+    /// How urgent the host made it, from its interruption level; saved as the raw value.
+    enum Level: Int, Equatable {
+        case informational
+        case warning
+        case critical
+
+        init(_ level: Alert.InterruptionLevel) {
+            switch level {
+            case .active: self = .informational
+            case .timeSensitive: self = .warning
+            case .critical: self = .critical
+            }
+        }
+    }
+
+    /// The host's `Alert.Identifier.value`, which the retraction names.
+    var identifier: String
+    var level: Level
+    var title: String?
+    var body: String?
+    /// When the host issued the alert.
+    var issuedAt: Date
+    /// Set by the host for glucose alerts; `nil` for any other alert.
+    var glucoseAlertType: SmartwatchGlucoseAlertType?
+
+    init(identifier: String, level: Level, title: String?, body: String?, issuedAt: Date, glucoseAlertType: SmartwatchGlucoseAlertType?) {
+        self.identifier = identifier
+        self.level = level
+        self.title = title
+        self.body = body
+        self.issuedAt = issuedAt
+        self.glucoseAlertType = glucoseAlertType
+    }
+
+    init(_ alert: Alert, glucoseAlertType: SmartwatchGlucoseAlertType?, issuedAt: Date) {
+        let content = alert.foregroundContent ?? alert.backgroundContent
+        self.init(
+            identifier: alert.identifier.value,
+            level: Level(alert.interruptionLevel),
+            title: content.title,
+            body: content.body,
+            issuedAt: issuedAt,
+            glucoseAlertType: glucoseAlertType
+        )
+    }
+
     /// How an active alert is saved in the manager's `rawState`.
     var savedState: [String: Any] {
-        var state: [String: Any] = ["identifier": identifier.value, "level": level.rawValue, "issuedAt": issuedAt.timeIntervalSince1970]
+        var state: [String: Any] = ["identifier": identifier, "level": level.rawValue, "issuedAt": issuedAt.timeIntervalSince1970]
         state["title"] = title
         state["body"] = body
         state["glucoseAlertType"] = glucoseAlertType?.rawValue
@@ -477,32 +515,18 @@ private extension SmartwatchAlert {
 
     init?(savedState: [String: Any]) {
         guard let identifier = savedState["identifier"] as? String,
-              let level = (savedState["level"] as? Int).flatMap(SmartwatchAlertLevel.init(rawValue:)),
+              let level = (savedState["level"] as? Int).flatMap(Level.init(rawValue:)),
               let issuedAt = savedState["issuedAt"] as? TimeInterval
         else {
             return nil
         }
         self.init(
-            identifier: SmartwatchAlertIdentifier(identifier),
+            identifier: identifier,
             level: level,
             title: savedState["title"] as? String,
             body: savedState["body"] as? String,
             issuedAt: Date(timeIntervalSince1970: issuedAt),
             glucoseAlertType: (savedState["glucoseAlertType"] as? String).flatMap(SmartwatchGlucoseAlertType.init(rawValue:))
         )
-    }
-}
-
-private extension LupedTrend {
-    init(_ trend: SmartwatchGlucoseTrend) {
-        switch trend {
-        case .downDownDown: self = .doubleDown
-        case .downDown: self = .singleDown
-        case .down: self = .fortyFiveDown
-        case .flat: self = .flat
-        case .up: self = .fortyFiveUp
-        case .upUp: self = .singleUp
-        case .upUpUp: self = .doubleUp
-        }
     }
 }
