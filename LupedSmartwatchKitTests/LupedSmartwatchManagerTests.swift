@@ -14,13 +14,21 @@ import LupedKit
 final class LupedSmartwatchManagerTests: XCTestCase {
     private let start = Date(timeIntervalSinceNow: -1_800)
 
-    private func sample(_ mgdl: Double, minutes: Double, trend: SmartwatchGlucoseTrend? = .flat, wasUserEntered: Bool = false) -> SmartwatchGlucoseReading {
-        SmartwatchGlucoseReading(
-            date: start.addingTimeInterval(minutes * 60),
-            milligramsPerDeciliter: mgdl,
+    private func sample(_ mgdl: Double, minutes: Double, trend: GlucoseTrend? = .flat, wasUserEntered: Bool = false) -> StoredGlucoseSample {
+        StoredGlucoseSample(
+            startDate: start.addingTimeInterval(minutes * 60),
+            quantity: LoopQuantity(unit: .milligramsPerDeciliter, doubleValue: mgdl),
             trend: trend,
             wasUserEntered: wasUserEntered
         )
+    }
+
+    /// Polls until `condition` holds, for work the manager does in a task.
+    private func waitUntil(_ message: String = "", _ condition: () -> Bool) async throws {
+        for _ in 0..<100 where !condition() {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertTrue(condition(), message)
     }
 
     func testRawStateRoundTrips() throws {
@@ -28,36 +36,30 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         let manager = LupedSmartwatchManager(settings: settings)
         let restored = try XCTUnwrap(LupedSmartwatchManager(rawState: manager.rawState))
         XCTAssertEqual(restored.settings, settings)
+        XCTAssertEqual(restored.remotePermissions, .none)
     }
 
-    // The host fills only what the watch shows (status line and loop ring), and
-    // is asked for a new snapshot when that changes.
-    func testRequestedCapabilitiesFollowTheStatusLineAndLoopRing() {
+    // Only what the watch shows is read from the host (status line and loop ring).
+    func testHostReadsFollowTheStatusLineAndLoopRing() {
         let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, statusLine: .none, loopRing: false, remoteEnabled: false))
-        let delegate = MockSmartwatchManagerDelegate()
-        manager.smartwatchManagerDelegate = delegate
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts])
+        XCTAssertEqual(manager.hostReads, .init(loopState: false, therapy: false, remote: false))
 
         manager.settings.loopRing = true
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts, .loopStatus], "None with the loop ring still needs the loop's age")
-        XCTAssertEqual(delegate.refreshRequests, 1)
+        XCTAssertEqual(manager.hostReads, .init(loopState: true, therapy: false, remote: false), "None with the loop ring still needs the loop's age")
 
         manager.settings.statusLine = .iobAndCob
-        XCTAssertEqual(delegate.refreshRequests, 1, "same capabilities: no new snapshot needed")
+        XCTAssertEqual(manager.hostReads, .init(loopState: true, therapy: false, remote: false))
 
         manager.settings.statusLine = .eventualGlucose
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts, .loopStatus, .therapy])
-        XCTAssertEqual(delegate.refreshRequests, 2)
+        XCTAssertEqual(manager.hostReads, .init(loopState: true, therapy: true, remote: false))
 
         manager.settings.loopRing = false
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts, .loopStatus, .therapy], "a shown line keeps the loop ring")
-        XCTAssertTrue(manager.requestedCapabilities.isSubset(of: LupedSmartwatchManager.capabilities))
+        XCTAssertEqual(manager.hostReads, .init(loopState: true, therapy: true, remote: false), "a shown line keeps the loop ring")
 
         manager.settings.fullScreen = true
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts], "Large Glucose shows no status line or last loop")
-        XCTAssertEqual(delegate.refreshRequests, 3)
+        XCTAssertEqual(manager.hostReads, .init(loopState: false, therapy: false, remote: false), "Large Glucose shows no status line or last loop")
         manager.settings.fullScreen = false
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts, .loopStatus, .therapy], "the chosen line comes back")
+        XCTAssertEqual(manager.hostReads, .init(loopState: true, therapy: true, remote: false), "the chosen line comes back")
     }
 
     // The host's errors become RESULT outcomes with a reason the watch shows.
@@ -74,63 +76,46 @@ final class LupedSmartwatchManagerTests: XCTestCase {
     func testLupedRemoteAlwaysNeedsTheLoopStatus() {
         // Luped Remote is off by default; turned on, it needs the loop status.
         let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, fullScreen: true))
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts])
+        XCTAssertEqual(manager.hostReads, .init(loopState: false, therapy: false, remote: false))
         manager.settings.remoteEnabled = true
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts, .loopStatus])
+        XCTAssertEqual(manager.hostReads, .init(loopState: true, therapy: false, remote: true))
         manager.settings.remoteEnabled = false
-        XCTAssertEqual(manager.requestedCapabilities.subtracting(LupedSmartwatchManager.remoteCapabilities), [.glucose, .history, .alerts])
+        XCTAssertEqual(manager.hostReads, .init(loopState: false, therapy: false, remote: false))
     }
 
     // A bolus with carbs is refused whole when its bolus couldn't follow the
     // carbs within the request window: never carbs without their bolus.
     func testABolusWithCarbsNeedsTimeForTheBolusAfterTheCarbs() {
-        let window = SmartwatchRequestWindow.standard
+        let window = LupedSmartwatchManager.requestWindow
         let now = Date()
         XCTAssertTrue(LupedSmartwatchManager.leavesTimeForBolusAfterCarbs(requestedAt: now.addingTimeInterval(-2), now: now, window: window))
         XCTAssertTrue(LupedSmartwatchManager.leavesTimeForBolusAfterCarbs(requestedAt: now.addingTimeInterval(-12), now: now, window: window))
         XCTAssertFalse(LupedSmartwatchManager.leavesTimeForBolusAfterCarbs(requestedAt: now.addingTimeInterval(-13), now: now, window: window), "the bolus could be too old once the carbs are in")
     }
 
-    // With Luped Remote off the host gets no remote capability, so it refuses
-    // remote requests and no bolus key goes to the watch.
-    @MainActor func testRemoteCapabilitiesOnlyWhileLupedRemoteIsOn() {
-        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false))
-        XCTAssertTrue(manager.requestedCapabilities.isDisjoint(with: LupedSmartwatchManager.remoteCapabilities))
-        XCTAssertTrue(manager.effectiveCapabilities.isDisjoint(with: LupedSmartwatchManager.remoteCapabilities))
-        manager.latestSnapshot = SmartwatchStatusSnapshot(displayUnit: .milligramsPerDeciliter, glucose: nil, glucoseHistory: [], permittedActions: [.remoteBolus])
-        XCTAssertFalse(manager.bolusKeyAllowed)
-        manager.settings.remoteEnabled = true
-        XCTAssertTrue(manager.requestedCapabilities.isSuperset(of: LupedSmartwatchManager.remoteCapabilities))
-        XCTAssertTrue(manager.bolusKeyAllowed)
-        manager.settings.remoteEnabled = false
-        XCTAssertFalse(manager.bolusKeyAllowed)
+    // Luped's limits are the ones Loop applied to every watch before the checks
+    // moved into the plugin, so the watch sees no change.
+    func testLupedLimitsAreTheOnesHostsApplied() {
+        XCTAssertEqual(LupedSmartwatchManager.requestWindow, SmartwatchRequestWindow(maximumAge: 30, maximumClockSkew: 5))
+        let bolus = LupedSmartwatchManager.bolusLimits
+        XCTAssertEqual(bolus.requestWindow, LupedSmartwatchManager.requestWindow)
+        XCTAssertEqual(bolus.maximumContextAge, 15 * 60)
+        XCTAssertEqual(bolus.maximumGlucoseAge, 15 * 60)
+        XCTAssertEqual(bolus.minimumInterval, 5 * 60)
+        XCTAssertEqual(bolus.dailyLimitInMaximumBoluses, 3)
+        XCTAssertTrue(bolus.requiresContextToken)
+        XCTAssertTrue(bolus.capsAtRecommendation)
+        XCTAssertEqual(LupedSmartwatchManager.carbEntryLimits, SmartwatchCarbEntryPolicy.Limits(requestWindow: LupedSmartwatchManager.requestWindow, minimumInterval: 5 * 60))
     }
 
-    // Luped Remote is offered only with a remote capability declared; without one
-    // its saved switch is ignored, so its watch session never opens.
-    func testLupedRemoteNeedsADeclaredRemoteCapability() {
-        XCTAssertTrue(LupedSmartwatchManager.offersLupedRemote, "this build declares the remote capabilities")
-        XCTAssertTrue(LupedSmartwatchManager.capabilities.isSuperset(of: LupedSmartwatchManager.remoteCapabilities))
-
+    // Luped Remote can be left out of a build; its saved switch is then
+    // ignored, so its watch session never opens.
+    func testLupedRemoteCanBeLeftOut() {
+        XCTAssertTrue(LupedSmartwatchManager.offersLupedRemote, "this build offers Luped Remote")
         let on = LupedSettings(isEnabled: true, remoteEnabled: true)
         XCTAssertFalse(LupedSmartwatchManager.linkSettings(on, offersLupedRemote: false).servesRemote)
-        XCTAssertFalse(LupedSmartwatchManager.linkSettings(on, offersLupedRemote: false).remoteEnabled, "nor asks the host for loop status for it")
+        XCTAssertFalse(LupedSmartwatchManager.linkSettings(on, offersLupedRemote: false).remoteEnabled, "nor reads the host's loop status for it")
         XCTAssertTrue(LupedSmartwatchManager.linkSettings(on, offersLupedRemote: true).servesRemote)
-    }
-
-    // A plugin can't obtain a capability it didn't declare: hosts act only on
-    // effectiveCapabilities (declared ∩ requested).
-    func testUndeclaredRequestedCapabilitiesAreIgnored() {
-        let greedy = GreedySmartwatchManager()
-        XCTAssertEqual(greedy.effectiveCapabilities, [.glucose])
-        XCTAssertEqual(greedy.undeclaredRequestedCapabilities, [.prediction, .loopStatus])
-        XCTAssertEqual(greedy.undeclaredRequestedCapabilities.description, "prediction, loopStatus", "hosts log the names")
-        XCTAssertEqual(SmartwatchCapabilities([]).description, "none")
-        XCTAssertEqual(SmartwatchCapabilities([.glucose, SmartwatchCapabilities(rawValue: 1 << 20)]).description, "glucose, raw value 1048576")
-
-        let luped = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, statusLine: .eventualGlucose))
-        XCTAssertEqual(luped.effectiveCapabilities, luped.requestedCapabilities)
-        XCTAssertTrue(luped.undeclaredRequestedCapabilities.isEmpty)
     }
 
     func testSettingsChangesSaveState() {
@@ -143,7 +128,7 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         XCTAssertEqual(delegate.stateUpdates, 1, "An unchanged value is not saved again")
     }
 
-    /// Luped's communication log reaches Loop's device log, keyed by the
+    /// Luped's communication log reaches the host's device log, keyed by the
     /// watchface UUID, with each kind mapped to its device log type.
     func testCommunicationLogReachesDeviceLog() async throws {
         let uuid = UUID()
@@ -186,7 +171,7 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         log.clear()
         delegate.logEntries.removeAll()
 
-        manager.watchAlertDidIssue(SmartwatchAlert(identifier: SmartwatchAlertIdentifier("glucose.high"), level: .warning, title: "High Glucose", issuedAt: Date()))
+        issue(manager, glucoseAlert("high", title: "High Glucose"))
         XCTAssertTrue(log.entries.last?.message.hasPrefix("\(LupedSmartwatchManager.hostName) alert issued [warning], event \(manager.alertEvent): High Glucose") == true, log.text)
         XCTAssertEqual(delegate.logEntries.count, 1)
 
@@ -197,25 +182,26 @@ final class LupedSmartwatchManagerTests: XCTestCase {
     }
 
     /// Luped Remote's recommendation request reaches the host with its carbs, and
-    /// the host's answer (or refusal, with its reason) goes back as RECOMMEND.
-    /// With no remote running here, the answer is logged as not sent.
+    /// the host's answer goes back as RECOMMEND, with the maximum bolus. Without
+    /// recent glucose it is refused before the host is asked. With no remote
+    /// running here, the answer is logged as not sent.
     func testBolusRecommendationRequestReachesTheHost() async throws {
         let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, remoteEnabled: true))
         let delegate = MockSmartwatchManagerDelegate()
         manager.smartwatchManagerDelegate = delegate
+        manager.remotePermissions.bolus = true
         let log = manager.transport.communicationLog
-        delegate.recommendation = .success(SmartwatchBolusRecommendation(units: 0.45, grams: 10, maximumBolus: 5, issuedAt: Date()))
+        delegate.glucoseSamples = [StoredGlucoseSample(startDate: Date(timeIntervalSinceNow: -120), quantity: LoopQuantity(unit: .milligramsPerDeciliter, doubleValue: 120))]
+        delegate.recommendation = .success(0.45)
 
         manager.requestBolusRecommendation(10)
-        try await Task.sleep(nanoseconds: 200_000_000)
+        try await waitUntil(log.text) { log.entries.contains { $0.message == "RECOMMEND 10:ok:0.45:5 not sent: Luped Remote is no longer running" } }
         XCTAssertEqual(delegate.recommendationRequests, [10])
-        XCTAssertTrue(log.entries.contains { $0.message == "RECOMMEND 10:ok:0.45:5 not sent: Luped Remote is no longer running" }, log.text)
 
-        delegate.recommendation = .failure(SmartwatchBolusError.noRecentGlucose)
+        delegate.glucoseSamples = [StoredGlucoseSample(startDate: Date(timeIntervalSinceNow: -16 * 60), quantity: LoopQuantity(unit: .milligramsPerDeciliter, doubleValue: 120))]
         manager.requestBolusRecommendation(0)
-        try await Task.sleep(nanoseconds: 200_000_000)
-        XCTAssertEqual(delegate.recommendationRequests, [10, 0])
-        XCTAssertTrue(log.entries.contains { $0.message == "RECOMMEND 0:refused:no recent glucose not sent: Luped Remote is no longer running" }, log.text)
+        try await waitUntil(log.text) { log.entries.contains { $0.message == "RECOMMEND 0:refused:no recent glucose not sent: Luped Remote is no longer running" } }
+        XCTAssertEqual(delegate.recommendationRequests, [10], "Not asked without recent glucose")
     }
 
     /// Delete from the settings screen asks the host to remove the manager and
@@ -232,16 +218,16 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         XCTAssertEqual(manager.transportIfStarted?.settings.isEnabled, false)
     }
 
-    func testSnapshotBecomesLupedSnapshot() throws {
+    func testHostDataBecomesLupedSnapshot() throws {
         let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false))
-        XCTAssertNil(manager.lupedSnapshot(), "Nothing to send before the first snapshot")
+        XCTAssertNil(manager.lupedSnapshot(), "Nothing to send before the first read")
 
-        let history = [
+        manager.hostData.displayUnit = .millimolesPerLiter
+        manager.hostData.glucoseSamples = [
             sample(100, minutes: 0),
             sample(250, minutes: 2, wasUserEntered: true),
             sample(110, minutes: 5, trend: .upUp),
         ]
-        manager.latestSnapshot = SmartwatchStatusSnapshot(displayUnit: .millimolesPerLiter, glucose: history.last, glucoseHistory: history)
 
         let snapshot = try XCTUnwrap(manager.lupedSnapshot())
         XCTAssertEqual(snapshot.unit, .millimolesPerLiter)
@@ -253,48 +239,210 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         XCTAssertEqual(snapshot.alertEvent, manager.alertEvent)
     }
 
-    /// A host without per-entry carb absorption (Trio) tells Luped Remote not to
-    /// ask, and an absorption an older watch still sends is left out.
-    func testHostWithoutCarbAbsorption() throws {
-        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false))
-        let reading = sample(120, minutes: 5)
-        manager.latestSnapshot = SmartwatchStatusSnapshot(displayUnit: .milligramsPerDeciliter, glucose: reading, glucoseHistory: [reading])
-        XCTAssertEqual(try XCTUnwrap(manager.lupedSnapshot()).usesCarbAbsorption, true, "LoopKit's default: hosts use it")
-        XCTAssertEqual(manager.hostAbsorption(.slow), .slow)
+    /// The wire model is mg/dL whatever the host's units: glucose, eventual
+    /// glucose, ISF (with or without the per-unit part) and target range given in
+    /// mmol/L arrive in mg/dL, basal in U/h.
+    func testHostUnitsBecomeMilligramsPerDeciliter() throws {
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, statusLine: .sensitivityAndTarget))
+        let mmol = { (value: Double) in LoopQuantity(unit: .millimolesPerLiter, doubleValue: value) }
+        manager.hostData.displayUnit = .millimolesPerLiter
+        manager.hostData.glucoseSamples = [StoredGlucoseSample(startDate: start, quantity: mmol(5.5))]
+        manager.hostData.loopState = SmartwatchLoopState(lastLoopCompleted: start, isClosedLoop: true, eventualGlucose: mmol(7))
+        manager.hostData.therapy = LupedHostData.Therapy(
+            tempBasal: DoseEntry(type: .tempBasal, startDate: start, endDate: start.addingTimeInterval(1_800), value: 0.4, unit: .unitsPerHour, decisionId: nil),
+            scheduledBasalRate: LoopQuantity(unit: .internationalUnitsPerHour, doubleValue: 0.85),
+            insulinSensitivity: LoopQuantity(unit: .millimolesPerLiterPerInternationalUnit, doubleValue: 2.5),
+            correctionRange: mmol(5.5)...mmol(6.1)
+        )
 
-        manager.latestSnapshot?.usesCarbAbsorption = false
-        XCTAssertEqual(try XCTUnwrap(manager.lupedSnapshot()).usesCarbAbsorption, false)
-        XCTAssertNil(manager.hostAbsorption(.slow))
-        XCTAssertNil(manager.hostAbsorption(nil))
+        let snapshot = try XCTUnwrap(manager.lupedSnapshot())
+        XCTAssertEqual(snapshot.unit, .millimolesPerLiter, "The display unit goes separately")
+        XCTAssertEqual(try XCTUnwrap(snapshot.readings.first?.milligramsPerDeciliter), 99.09, accuracy: 0.01)
+        let therapy = try XCTUnwrap(snapshot.therapy)
+        XCTAssertEqual(try XCTUnwrap(therapy.eventualGlucose), 126.11, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(therapy.insulinSensitivity), 45.04, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(therapy.correctionRange?.lowerBound), 99.09, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(therapy.correctionRange?.upperBound), 109.90, accuracy: 0.01)
+        XCTAssertEqual(therapy.scheduledBasalRate, 0.85)
+        XCTAssertEqual(therapy.tempBasalRate, 0.4)
+
+        // Loop stores ISF as mg/dL, without the per-unit part.
+        manager.hostData.therapy?.insulinSensitivity = LoopQuantity(unit: .milligramsPerDeciliter, doubleValue: 45)
+        XCTAssertEqual(try XCTUnwrap(manager.lupedSnapshot()).therapy?.insulinSensitivity, 45)
+        // A unit that isn't glucose is left out rather than trapping.
+        manager.hostData.therapy?.insulinSensitivity = LoopQuantity(unit: .gram, doubleValue: 45)
+        XCTAssertNil(try XCTUnwrap(manager.lupedSnapshot()).therapy?.insulinSensitivity)
     }
 
-    /// Luped declares loop status (IOB/COB and the loop ring) and therapy (the
-    /// other status line choices) but handles no URL. Remote actions stay off
-    /// until requests are secured.
-    func testOptionalHostFeaturesStayOff() throws {
-        XCTAssertEqual(LupedSmartwatchManager.capabilities, [.glucose, .history, .alerts, .loopStatus, .therapy, .remoteMute, .remoteCarbs, .remoteBolus, .remoteOverride, .remoteTempTarget])
-        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false))
-        let reading = sample(120, minutes: 5)
-        manager.latestSnapshot = SmartwatchStatusSnapshot(displayUnit: .milligramsPerDeciliter, glucose: reading, glucoseHistory: [reading])
-        let plain = try XCTUnwrap(manager.lupedSnapshot())
-        manager.latestSnapshot = SmartwatchStatusSnapshot(
-            displayUnit: .milligramsPerDeciliter, glucose: reading, glucoseHistory: [reading],
-            insulinOnBoard: 1.2, carbsOnBoard: 15,
-            therapy: SmartwatchTherapyContext(tempBasalRate: 0.4, insulinSensitivity: 45, correctionRange: 100...110, activePresetName: "Exercise")
+    /// Loop status and therapy values reach the snapshot only while the watch
+    /// shows them, as hosts filled them only when asked.
+    func testLoopStateAndTherapyReachTheSnapshot() throws {
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, statusLine: .none, loopRing: false))
+        manager.hostData.displayUnit = .milligramsPerDeciliter
+        manager.hostData.glucoseSamples = [sample(120, minutes: 5)]
+        manager.hostData.loopState = SmartwatchLoopState(
+            lastLoopCompleted: start,
+            isClosedLoop: true,
+            insulinOnBoard: InsulinValue(startDate: start, value: 1.2),
+            carbsOnBoard: CarbValue(startDate: start, value: 15)
         )
+        manager.hostData.therapy = LupedHostData.Therapy(insulinSensitivity: LoopQuantity(unit: .milligramsPerDeciliter, doubleValue: 45), correctionRange: LoopQuantity(unit: .milligramsPerDeciliter, doubleValue: 100)...LoopQuantity(unit: .milligramsPerDeciliter, doubleValue: 110))
+        let plain = try XCTUnwrap(manager.lupedSnapshot())
+        XCTAssertEqual(plain.loopStatus, LupedLoopStatus(), "nothing shown, nothing filled")
+        XCTAssertNil(plain.therapy)
+
+        manager.settings.statusLine = .sensitivityAndTarget
         let withExtras = try XCTUnwrap(manager.lupedSnapshot())
         XCTAssertEqual(withExtras.readings, plain.readings)
-        XCTAssertEqual(withExtras.unit, plain.unit)
         // Loop status reaches the watch (IOB/COB strip and loop ring).
-        XCTAssertEqual(withExtras.loopStatus, LupedLoopStatus(insulinOnBoard: 1.2, carbsOnBoard: 15))
-        // Therapy values reach the status line choices (the preset is not used).
-        XCTAssertEqual(withExtras.therapy, LupedTherapy(tempBasalRate: 0.4, insulinSensitivity: 45, correctionRange: 100...110))
+        XCTAssertEqual(withExtras.loopStatus, LupedLoopStatus(insulinOnBoard: 1.2, carbsOnBoard: 15, lastLoopCompleted: start, isClosedLoop: true))
+        XCTAssertEqual(withExtras.therapy, LupedTherapy(insulinSensitivity: 45, correctionRange: 100...110))
         XCTAssertFalse(manager.watchHostDidReceiveURL(URL(string: "trio://smartwatch/callback")!))
     }
 
-    private func glucoseAlert(_ kind: String, _ level: SmartwatchAlertLevel = .warning, title: String? = nil) -> SmartwatchAlert {
+    /// Presets go to Luped Remote only while it is on, with the running one
+    /// marked. No temp target presets (Loop has no temp targets) hides that kind.
+    func testPresetsReachLupedRemote() throws {
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false))
+        manager.hostData.displayUnit = .milligramsPerDeciliter
+        manager.hostData.glucoseSamples = [sample(120, minutes: 5)]
+        let exercise = TemporaryPreset(id: "exercise", symbol: nil, name: "Exercise", settings: TemporaryPresetSettings(targetRange: nil, insulinNeedsScaleFactor: 0.5), duration: .finite(3_600))
+        let sleep = TemporaryPreset(id: "sleep", symbol: nil, name: "Sleep", settings: TemporaryPresetSettings(targetRange: nil), duration: .indefinite)
+        let running = TemporaryScheduleOverride(context: .preset(exercise), settings: exercise.settings, startDate: Date(timeIntervalSinceNow: -60), duration: exercise.duration, enactTrigger: .local, syncIdentifier: UUID())
+        manager.hostData.presets = LupedHostData.Presets(overrides: [exercise, sleep], activeOverride: running, tempTargets: nil, activeTempTarget: nil)
+
+        XCTAssertNil(try XCTUnwrap(manager.lupedSnapshot()).overridePresets, "Luped Remote is off")
+        manager.settings.remoteEnabled = true
+        let snapshot = try XCTUnwrap(manager.lupedSnapshot())
+        XCTAssertEqual(snapshot.overridePresets, [LupedPreset(id: "exercise", name: "Exercise", isActive: true), LupedPreset(id: "sleep", name: "Sleep", isActive: false)])
+        XCTAssertNil(snapshot.tempTargetPresets)
+    }
+
+    /// The host says what changed and the plugin reads only that: glucose for a
+    /// new reading, the loop state after the loop, nothing for the alert mute.
+    func testHostChangesAreReadFromTheDelegate() async throws {
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, statusLine: .iobAndCob))
+        let delegate = MockSmartwatchManagerDelegate()
+        manager.smartwatchManagerDelegate = delegate
+        delegate.displayUnit = .millimolesPerLiter
+        delegate.glucoseSamples = [sample(120, minutes: 5)]
+
+        manager.hostDataDidChange(.all)
+        await manager.hostReadTask?.value
+        XCTAssertEqual(manager.hostData.displayUnit, .millimolesPerLiter)
+        XCTAssertEqual(manager.hostData.glucoseSamples, delegate.glucoseSamples)
+        XCTAssertEqual(delegate.reads, ["unit", "absorption", "glucose", "loop"], "no therapy for IOB & COB, no presets with Luped Remote off")
+
+        delegate.reads.removeAll()
+        manager.hostDataDidChange(.glucose)
+        manager.flushHostChanges()
+        await manager.hostReadTask?.value
+        XCTAssertEqual(delegate.reads, ["glucose"], "a new reading is sent with the previous loop state")
+
+        delegate.reads.removeAll()
+        manager.hostDataDidChange(.loop)
+        manager.flushHostChanges()
+        await manager.hostReadTask?.value
+        XCTAssertEqual(delegate.reads, ["loop"])
+
+        delegate.reads.removeAll()
+        manager.hostDataDidChange(.alertMute)
+        manager.flushHostChanges()
+        await manager.hostReadTask?.value
+        XCTAssertEqual(delegate.reads, [], "the watch doesn't show the mute")
+    }
+
+    /// With Luped Remote on, presets are read and a bolus context is issued from
+    /// the host's recommendation, maximum bolus and volumes. The token stays
+    /// while they and the newest reading are unchanged.
+    /// The changes of one loop cycle arrive one by one; they are read once,
+    /// with one recommendation for the bolus context.
+    func testABurstOfHostChangesIsReadOnce() async throws {
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, remoteEnabled: true))
+        let delegate = MockSmartwatchManagerDelegate()
+        manager.smartwatchManagerDelegate = delegate
+        delegate.glucoseSamples = [sample(120, minutes: 5)]
+        delegate.recommendation = .success(1.2)
+        manager.hostDataDidChange(.all)
+        await manager.hostReadTask?.value
+        XCTAssertEqual(delegate.recommendationRequests, [0], ".all is read at once")
+
+        let interval = LupedSmartwatchManager.hostChangeCoalescingInterval
+        LupedSmartwatchManager.hostChangeCoalescingInterval = 0.2
+        defer { LupedSmartwatchManager.hostChangeCoalescingInterval = interval }
+        for changes: SmartwatchHostDataChange in [.glucose, .loop, .loop, .settings, .loop, .presets, .loop] {
+            manager.hostDataDidChange(changes)
+            await Task.yield()
+        }
+        XCTAssertEqual(delegate.recommendationRequests, [0], "nothing read while changes are collected")
+        try await waitUntil { delegate.recommendationRequests.count == 2 }
+        await manager.hostReadTask?.value
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertEqual(delegate.recommendationRequests, [0, 0], "one read for the burst")
+        XCTAssertNil(manager.pendingHostChangesTask)
+    }
+
+    /// A bolus request reads changes still being collected first, so the
+    /// context it is checked against counts them.
+    func testABolusReadsCollectedChangesFirst() async throws {
+        let (manager, delegate) = await remoteManager(defaults: isolatedDefaults())
+        let interval = LupedSmartwatchManager.hostChangeCoalescingInterval
+        LupedSmartwatchManager.hostChangeCoalescingInterval = 60
+        defer { LupedSmartwatchManager.hostChangeCoalescingInterval = interval }
+        let before = delegate.recommendationRequests.count
+        manager.hostDataDidChange(.loop)
+        manager.requestBolus(0.5, requestedAt: Date())
+        try await waitUntil { delegate.events.contains("bolus 0.50") }
+        XCTAssertGreaterThan(delegate.recommendationRequests.count, before, "the collected change was read before the bolus")
+        XCTAssertNil(manager.pendingHostChangesTask)
+    }
+
+    func testBolusContextIsIssuedFromTheHost() async throws {
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, remoteEnabled: true))
+        let delegate = MockSmartwatchManagerDelegate()
+        manager.smartwatchManagerDelegate = delegate
+        delegate.glucoseSamples = [sample(120, minutes: 5)]
+        delegate.recommendation = .success(1.2)
+
+        manager.hostDataDidChange(.all)
+        await manager.hostReadTask?.value
+        XCTAssertTrue(delegate.reads.contains("presets"))
+        let context = try XCTUnwrap(manager.bolusContext)
+        XCTAssertEqual(context.recommendedBolus, 1.2)
+        XCTAssertEqual(context.maximumBolus, 5)
+        XCTAssertEqual(context.bolusIncrement ?? 0, 0.05, accuracy: 0.0001)
+        XCTAssertEqual(delegate.recommendationRequests, [0])
+
+        manager.hostDataDidChange(.loop)
+        manager.flushHostChanges()
+        await manager.hostReadTask?.value
+        XCTAssertEqual(manager.bolusContext?.token, context.token, "unchanged inputs keep the token")
+
+        delegate.glucoseSamples.append(sample(125, minutes: 10))
+        manager.hostDataDidChange(.glucose)
+        manager.flushHostChanges()
+        await manager.hostReadTask?.value
+        XCTAssertNotEqual(manager.bolusContext?.token, context.token, "a new reading gives a new token")
+    }
+
+    private func glucoseAlert(_ kind: String, _ level: Alert.InterruptionLevel = .timeSensitive, title: String? = nil) -> Alert {
         // The identifier is host-specific (here Trio-style, with a UUID); the type is what counts.
-        SmartwatchAlert(identifier: SmartwatchAlertIdentifier("glucose." + kind), level: level, title: title, body: nil, issuedAt: Date(), glucoseAlertType: SmartwatchGlucoseAlertType(rawValue: kind))
+        Alert(
+            identifier: Alert.Identifier(managerIdentifier: "Trio", alertIdentifier: "glucose." + kind),
+            foregroundContent: nil,
+            backgroundContent: Alert.Content(title: title ?? kind, body: "", acknowledgeActionButtonLabel: "OK"),
+            trigger: .immediate,
+            interruptionLevel: level
+        )
+    }
+
+    private func issue(_ manager: LupedSmartwatchManager, _ alert: Alert) {
+        let kind = alert.identifier.alertIdentifier.components(separatedBy: ".").last ?? ""
+        manager.watchAlertDidIssue(alert, glucoseAlertType: SmartwatchGlucoseAlertType(rawValue: kind), issuedAt: Date())
+    }
+
+    private func retract(_ manager: LupedSmartwatchManager, _ kind: String) {
+        manager.watchAlertDidRetract(Alert.Identifier(managerIdentifier: "Trio", alertIdentifier: "glucose." + kind))
     }
 
     /// The watch's alert state (DATA index 8) is the most important active glucose
@@ -305,21 +453,22 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         manager.smartwatchManagerDelegate = delegate
         XCTAssertEqual(manager.hostAlertState, 0)
 
-        manager.watchAlertDidIssue(glucoseAlert("predictedLow"))
+        issue(manager, glucoseAlert("predictedLow"))
         XCTAssertEqual(manager.hostAlertState, 4)
-        manager.watchAlertDidIssue(glucoseAlert("high", title: "High Glucose"))
+        issue(manager, glucoseAlert("high", title: "High Glucose"))
         XCTAssertEqual(manager.hostAlertState, 3, "High outranks predicted low")
         XCTAssertTrue(delegate.logEntries.contains { $0.type == .connection && $0.message.contains("High Glucose") })
-        manager.watchAlertDidIssue(glucoseAlert("low"))
+        issue(manager, glucoseAlert("low"))
         XCTAssertEqual(manager.hostAlertState, 1, "Low outranks high")
-        manager.watchAlertDidIssue(glucoseAlert("urgentLow", .critical))
+        issue(manager, glucoseAlert("urgentLow", .critical))
         XCTAssertEqual(manager.hostAlertState, 2, "Urgent low outranks everything")
-        manager.watchAlertDidRetract(SmartwatchAlertIdentifier("glucose.urgentLow"))
+        retract(manager, "urgentLow")
         XCTAssertEqual(manager.hostAlertState, 1)
-        manager.watchAlertDidIssue(SmartwatchAlert(identifier: SmartwatchAlertIdentifier("Pump.occlusion"), level: .critical, title: nil, body: nil, issuedAt: Date()))
+        let occlusion = Alert(identifier: Alert.Identifier(managerIdentifier: "Pump", alertIdentifier: "occlusion"), foregroundContent: nil, backgroundContent: Alert.Content(title: "Occlusion", body: "", acknowledgeActionButtonLabel: "OK"), trigger: .immediate, interruptionLevel: .critical)
+        manager.watchAlertDidIssue(occlusion, glucoseAlertType: nil, issuedAt: Date())
         XCTAssertEqual(manager.hostAlertState, 1, "Non-glucose alerts don't set a state")
         for kind in ["low", "high", "predictedLow"] {
-            manager.watchAlertDidRetract(SmartwatchAlertIdentifier("glucose." + kind))
+            retract(manager, kind)
         }
         XCTAssertEqual(manager.hostAlertState, 0)
     }
@@ -329,9 +478,11 @@ final class LupedSmartwatchManagerTests: XCTestCase {
     func testAlertStateUsesTheTypeNotTheIdentifier() {
         let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: true))
         manager.smartwatchManagerDelegate = MockSmartwatchManagerDelegate()
-        manager.watchAlertDidIssue(SmartwatchAlert(identifier: SmartwatchAlertIdentifier("Trio.glucose.low.3F2A9C1E"), level: .critical, title: "Low", body: nil, issuedAt: Date(), glucoseAlertType: .low))
+        let trioLow = Alert(identifier: Alert.Identifier(managerIdentifier: "Trio", alertIdentifier: "glucose.low.3F2A9C1E"), foregroundContent: nil, backgroundContent: Alert.Content(title: "Low", body: "", acknowledgeActionButtonLabel: "OK"), trigger: .immediate, interruptionLevel: .critical)
+        manager.watchAlertDidIssue(trioLow, glucoseAlertType: .low, issuedAt: Date())
         XCTAssertEqual(manager.hostAlertState, 1)
-        manager.watchAlertDidIssue(SmartwatchAlert(identifier: SmartwatchAlertIdentifier("GlucoseAlertManager.glucose.high"), level: .warning, title: nil, body: nil, issuedAt: Date()))
+        let untyped = Alert(identifier: Alert.Identifier(managerIdentifier: "GlucoseAlertManager", alertIdentifier: "glucose.high"), foregroundContent: nil, backgroundContent: Alert.Content(title: "High", body: "", acknowledgeActionButtonLabel: "OK"), trigger: .immediate)
+        manager.watchAlertDidIssue(untyped, glucoseAlertType: nil, issuedAt: Date())
         XCTAssertEqual(manager.hostAlertState, 1, "An alert without a glucose type doesn't set a state")
     }
 
@@ -340,7 +491,7 @@ final class LupedSmartwatchManagerTests: XCTestCase {
     func testWatchAlarmsOffNegatesTheState() {
         let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: true, alarmsEnabled: false))
         manager.smartwatchManagerDelegate = MockSmartwatchManagerDelegate()
-        manager.watchAlertDidIssue(glucoseAlert("low", .critical))
+        issue(manager, glucoseAlert("low", .critical))
         XCTAssertEqual(manager.hostAlertState, -1)
         XCTAssertFalse(manager.hostAlertReason.contains("Watch Alarms"), "the DATA decode already says Watch Alarms is off: \(manager.hostAlertReason)")
     }
@@ -354,11 +505,11 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         let urgentLow = glucoseAlert("urgentLow", .critical, title: "Urgent Low")
         let start = manager.alertEvent
 
-        manager.watchAlertDidIssue(urgentLow)
+        issue(manager, urgentLow)
         XCTAssertEqual(manager.alertEvent, (start + 1) % LupedSmartwatchManager.alertEventModulus)
         XCTAssertEqual(manager.hostAlertState, 2)
 
-        manager.watchAlertDidIssue(urgentLow)  // the host's repeat fire
+        issue(manager, urgentLow)  // the host's repeat fire
         XCTAssertEqual(manager.alertEvent, (start + 2) % LupedSmartwatchManager.alertEventModulus)
         XCTAssertEqual(manager.hostAlertState, 2, "A repeat doesn't change the state")
         XCTAssertEqual(delegate.stateUpdates, 2, "Each fire saves the new event")
@@ -381,8 +532,8 @@ final class LupedSmartwatchManagerTests: XCTestCase {
     func testActiveAlertsSurviveRelaunch() throws {
         let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false))
         manager.smartwatchManagerDelegate = MockSmartwatchManagerDelegate()
-        manager.watchAlertDidIssue(glucoseAlert("high", title: "High Glucose"))
-        manager.watchAlertDidIssue(glucoseAlert("low", .critical))
+        issue(manager, glucoseAlert("high", title: "High Glucose"))
+        issue(manager, glucoseAlert("low", .critical))
 
         let restored = try XCTUnwrap(LupedSmartwatchManager(rawState: manager.rawState))
         let delegate = MockSmartwatchManagerDelegate()
@@ -396,13 +547,25 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         }
         XCTAssertEqual(restored.hostAlertState, 1)
 
-        restored.watchAlertDidRetract(SmartwatchAlertIdentifier("glucose.low"))
+        retract(restored, "low")
         XCTAssertEqual(restored.hostAlertState, 3)
         XCTAssertEqual(delegate.stateUpdates, 1, "A retraction saves the state")
-        restored.watchAlertDidRetract(SmartwatchAlertIdentifier("glucose.high"))
+        retract(restored, "high")
         let relaunchedAgain = try XCTUnwrap(LupedSmartwatchManager(rawState: restored.rawState))
         XCTAssertEqual(relaunchedAgain.hostAlertState, 0)
         XCTAssertNil(restored.rawState["activeAlerts"])
+    }
+
+    /// Alerts saved before the host passed LoopKit alerts (the same keys and level
+    /// numbers) still come back after the update.
+    func testAlertsSavedByTheEarlierBuildAreRestored() throws {
+        let saved: [String: Any] = ["identifier": "GlucoseAlertManager.glucose.low", "level": 2, "issuedAt": start.timeIntervalSince1970, "title": "Low", "glucoseAlertType": "low"]
+        let restored = try XCTUnwrap(LupedSmartwatchManager(rawState: ["activeAlerts": [saved]]))
+        let alert = try XCTUnwrap(restored.activeAlerts["GlucoseAlertManager.glucose.low"])
+        XCTAssertEqual(alert.level, .critical)
+        XCTAssertEqual(restored.hostAlertState, 1)
+        restored.watchAlertDidRetract(Alert.Identifier(managerIdentifier: "GlucoseAlertManager", alertIdentifier: "glucose.low"))
+        XCTAssertEqual(restored.hostAlertState, 0, "the host's retraction names the same identifier")
     }
 
     /// The event advances while watch alarms are off, so turning them back on
@@ -411,7 +574,7 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: true, alarmsEnabled: false))
         manager.smartwatchManagerDelegate = MockSmartwatchManagerDelegate()
         let start = manager.alertEvent
-        manager.watchAlertDidIssue(glucoseAlert("low"))
+        issue(manager, glucoseAlert("low"))
         XCTAssertEqual(manager.alertEvent, (start + 1) % LupedSmartwatchManager.alertEventModulus)
         XCTAssertEqual(manager.hostAlertState, -1)
     }
@@ -439,7 +602,7 @@ final class LupedSmartwatchManagerTests: XCTestCase {
     func testAlertEventWrapsPastZero() throws {
         let manager = try XCTUnwrap(LupedSmartwatchManager(rawState: ["alertEvent": LupedSmartwatchManager.alertEventModulus - 1]))
         manager.smartwatchManagerDelegate = MockSmartwatchManagerDelegate()
-        manager.watchAlertDidIssue(SmartwatchAlert(identifier: SmartwatchAlertIdentifier("glucose.high"), level: .warning, title: nil, body: nil, issuedAt: Date()))
+        issue(manager, glucoseAlert("high"))
         XCTAssertEqual(manager.alertEvent, 1)
     }
 
@@ -457,21 +620,393 @@ final class LupedSmartwatchManagerTests: XCTestCase {
     }
 }
 
+// MARK: - Luped Remote: switches, checks and history
+
+extension LupedSmartwatchManagerTests {
+    /// A manager with Luped Remote on, a host with a reading 2 minutes old that
+    /// recommends 1 U, and rate-limit history of its own.
+    private func remoteManager(permissions: LupedRemotePermissions = LupedRemotePermissions(bolus: true, carbs: true), defaults: UserDefaults) async -> (LupedSmartwatchManager, MockSmartwatchManagerDelegate) {
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, remoteEnabled: true))
+        manager.remoteHistory = LupedRemoteHistory(defaults: defaults)
+        let delegate = MockSmartwatchManagerDelegate()
+        delegate.glucoseSamples = [StoredGlucoseSample(startDate: Date(timeIntervalSinceNow: -120), quantity: LoopQuantity(unit: .milligramsPerDeciliter, doubleValue: 120))]
+        delegate.recommendation = .success(1)
+        manager.smartwatchManagerDelegate = delegate
+        manager.remotePermissions = permissions
+        manager.hostDataDidChange(.all)
+        await manager.hostReadTask?.value
+        return (manager, delegate)
+    }
+
+    /// History kept apart from the app's own defaults, removed after the test.
+    private func isolatedDefaults() -> UserDefaults {
+        let name = "LupedSmartwatchKitTests.\(UUID().uuidString)"
+        addTeardownBlock { UserDefaults().removePersistentDomain(forName: name) }
+        return UserDefaults(suiteName: name)!
+    }
+
+    private func logged(_ delegate: MockSmartwatchManagerDelegate, _ prefix: String) -> Bool {
+        delegate.logEntries.contains { $0.message.hasPrefix(prefix) }
+    }
+
+    /// Every switch is off until turned on, is saved in rawState, and a missing
+    /// one is off.
+    func testRemoteSwitchesAreOffUntilTurnedOnAndSaved() throws {
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, remoteEnabled: true))
+        XCTAssertEqual(manager.remotePermissions, .none)
+        let delegate = MockSmartwatchManagerDelegate()
+        manager.smartwatchManagerDelegate = delegate
+
+        manager.remotePermissions.carbs = true
+        manager.remotePermissions.tempTargets = true
+        XCTAssertEqual(delegate.stateUpdates, 2)
+        manager.remotePermissions.carbs = true
+        XCTAssertEqual(delegate.stateUpdates, 2, "An unchanged switch is not saved again")
+
+        let restored = try XCTUnwrap(LupedSmartwatchManager(rawState: manager.rawState))
+        XCTAssertEqual(restored.remotePermissions, LupedRemotePermissions(carbs: true, tempTargets: true))
+        XCTAssertEqual(LupedRemotePermissions(rawValue: ["bolus": true]), LupedRemotePermissions(bolus: true))
+        XCTAssertEqual(LupedRemotePermissions(rawValue: [:]), .none)
+    }
+
+    /// D1: the watch gets a bolus key only while Luped Remote is on and boluses
+    /// from it are allowed.
+    func testBolusKeyOnlyWithLupedRemoteAndItsSwitch() {
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false))
+        manager.remotePermissions.bolus = true
+        XCTAssertFalse(manager.bolusKeyAllowed, "Luped Remote is off")
+        manager.settings.remoteEnabled = true
+        XCTAssertTrue(manager.bolusKeyAllowed)
+        manager.remotePermissions.bolus = false
+        XCTAssertFalse(manager.bolusKeyAllowed, "boluses from the watch are off")
+        manager.remotePermissions = LupedRemotePermissions(carbs: true, mute: true, overrides: true, tempTargets: true)
+        XCTAssertFalse(manager.bolusKeyAllowed, "the other switches don't give a key")
+    }
+
+    /// Deleting the watch turns every switch off, so a watch added later starts
+    /// with none allowed, and takes the bolus key away.
+    func testDeleteTurnsEveryRemoteSwitchOff() async {
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: true, remoteEnabled: true))
+        let delegate = MockSmartwatchManagerDelegate()
+        manager.smartwatchManagerDelegate = delegate
+        manager.remotePermissions = LupedRemotePermissions(bolus: true, carbs: true, mute: true, overrides: true, tempTargets: true)
+        manager.transportIfStarted = LupedTransport(hostName: LupedSmartwatchManager.hostName, settings: manager.settings)
+        manager.transportIfStarted?.issuesBolusKey = true
+
+        await manager.delete()
+
+        XCTAssertEqual(manager.remotePermissions, .none)
+        XCTAssertEqual(LupedSmartwatchManager(rawState: manager.rawState)?.remotePermissions, LupedRemotePermissions.none)
+        XCTAssertFalse(manager.bolusKeyAllowed)
+        XCTAssertEqual(manager.transportIfStarted?.issuesBolusKey, false)
+        XCTAssertEqual(delegate.deletions, 1)
+    }
+
+    /// Each request needs its own switch; with it off the host is never asked.
+    func testEachRequestNeedsItsSwitch() async throws {
+        let (manager, delegate) = await remoteManager(permissions: .none, defaults: isolatedDefaults())
+
+        manager.requestAlertMute(15 * 60, requestedAt: Date())
+        XCTAssertTrue(logged(delegate, "Mute request from the watch refused: Allow Mute from Watch is off"))
+        manager.requestOverride(.cancel, requestedAt: Date())
+        XCTAssertTrue(logged(delegate, "Preset request rejected: notAllowed (Allow Presets from Watch is off)"))
+        manager.requestTempTarget(.cancel, requestedAt: Date())
+        XCTAssertTrue(logged(delegate, "Temp target request rejected: notAllowed (Allow Temp Targets from Watch is off)"))
+        manager.requestBolusRecommendation(0)
+        XCTAssertTrue(logged(delegate, "Bolus recommendation refused: Allow Boluses from Watch is off"))
+        manager.requestCarbs(20, requestedAt: Date())
+        try await waitUntil { self.logged(delegate, "Carb entry request rejected: notAllowed (Allow Carbs from Watch is off)") }
+        manager.requestBolus(0.5, requestedAt: Date())
+        try await waitUntil { self.logged(delegate, "Bolus request rejected by Luped's checks: notAllowed (Allow Boluses from Watch is off; ") }
+        XCTAssertEqual(delegate.events.filter { !$0.hasPrefix("recommend") }, [], "The host was never asked")
+
+        // Turned on, they pass.
+        manager.remotePermissions = LupedRemotePermissions(mute: true, overrides: true)
+        manager.requestAlertMute(15 * 60, requestedAt: Date())
+        manager.requestOverride(.cancel, requestedAt: Date())
+        try await waitUntil { delegate.events.contains("mute") && delegate.events.contains("override") }
+        // Requests confirmed too long ago are refused.
+        manager.requestAlertMute(15 * 60, requestedAt: Date(timeIntervalSinceNow: -31))
+        XCTAssertTrue(logged(delegate, "Mute request from the watch refused: expiredRequest"))
+    }
+
+    /// A bolus is checked against the context the plugin issued and delivered;
+    /// the next one within 5 minutes is refused, and one over the recommendation
+    /// is refused unless forced.
+    func testWatchBolusIsCheckedThenDelivered() async throws {
+        let defaults = isolatedDefaults()
+        let (manager, delegate) = await remoteManager(defaults: defaults)
+
+        manager.requestBolus(1.5, requestedAt: Date())
+        try await waitUntil { self.logged(delegate, "Bolus request rejected by Luped's checks: exceedsRecommendation") }
+
+        manager.requestBolus(0.52, requestedAt: Date())
+        try await waitUntil { delegate.events.contains("bolus 0.50") }
+        XCTAssertEqual(manager.remoteHistory.bolusDeliveries.map(\.units), [0.5], "rounded down to the pump's 0.05 U steps")
+        try await waitUntil { self.logged(delegate, "\(LupedSmartwatchManager.hostName) delivered 0.50 U requested from the watch") }
+
+        manager.requestBolus(0.5, forced: true, requestedAt: Date())
+        try await waitUntil { self.logged(delegate, "Bolus request rejected by Luped's checks: rateLimited") }
+        XCTAssertEqual(delegate.events.filter { $0.hasPrefix("bolus") }, ["bolus 0.50"])
+    }
+
+    /// Without a recent reading, even a forced bolus is refused.
+    func testBolusNeedsRecentGlucose() async throws {
+        let (manager, delegate) = await remoteManager(defaults: isolatedDefaults())
+        delegate.glucoseSamples = [StoredGlucoseSample(startDate: Date(timeIntervalSinceNow: -16 * 60), quantity: LoopQuantity(unit: .milligramsPerDeciliter, doubleValue: 120))]
+        manager.requestBolus(0.5, forced: true, requestedAt: Date())
+        try await waitUntil { self.logged(delegate, "Bolus request rejected by Luped's checks: noRecentGlucose (newest glucose 16 min ago; ") }
+        XCTAssertFalse(delegate.events.contains { $0.hasPrefix("bolus") })
+    }
+
+    /// A failed or uncertain delivery counts for the time between boluses, but
+    /// not toward the daily total.
+    func testAFailedBolusStillCountsForTheGap() async throws {
+        let (manager, delegate) = await remoteManager(defaults: isolatedDefaults())
+        delegate.bolusError = SmartwatchBolusError.deliveryFailed("lost contact with the pump")
+        manager.requestBolus(0.5, requestedAt: Date())
+        try await waitUntil { self.logged(delegate, "\(LupedSmartwatchManager.hostName) refused the watch's bolus request (deliveryFailed") }
+        XCTAssertEqual(manager.remoteHistory.bolusDeliveries.map(\.units), [0])
+        try await waitUntil("a new context after the attempt spent it") { manager.bolusContextIssuer.current != nil }
+
+        delegate.bolusError = nil
+        manager.requestBolus(0.5, requestedAt: Date())
+        try await waitUntil { self.logged(delegate, "Bolus request rejected by Luped's checks: rateLimited") }
+    }
+
+    /// The host answers inProgress while another bolus is delivering: nothing
+    /// was sent for this request, so it starts no gap.
+    func testABolusTheHostAnswersInProgressStartsNoGap() async throws {
+        let (manager, delegate) = await remoteManager(defaults: isolatedDefaults())
+        delegate.bolusError = SmartwatchBolusError.inProgress
+        manager.requestBolus(0.5, requestedAt: Date())
+        try await waitUntil { self.logged(delegate, "\(LupedSmartwatchManager.hostName) is still delivering another bolus; this request is refused") }
+        XCTAssertEqual(manager.remoteHistory.bolusDeliveries, [])
+        try await waitUntil("a new context after the attempt") { manager.bolusContextIssuer.current != nil }
+
+        delegate.bolusError = nil
+        manager.requestBolus(0.5, requestedAt: Date())
+        try await waitUntil { self.logged(delegate, "\(LupedSmartwatchManager.hostName) delivered 0.50 U requested from the watch") }
+        XCTAssertEqual(delegate.events.filter { $0.hasPrefix("bolus") }, ["bolus 0.50", "bolus 0.50"])
+    }
+
+    /// The history isn't in rawState and survives deleting the watch: a watch
+    /// added again doesn't get a fresh 5-minute gap or daily total.
+    func testBolusHistorySurvivesDeletingTheWatch() async throws {
+        let defaults = isolatedDefaults()
+        let (first, firstHost) = await remoteManager(defaults: defaults)
+        first.requestBolus(0.5, requestedAt: Date())
+        try await waitUntil { firstHost.events.contains("bolus 0.50") }
+        XCTAssertNil(first.rawState["bolusDeliveries"])
+        await first.delete()
+        XCTAssertEqual(LupedRemoteHistory(defaults: defaults).bolusDeliveries.map(\.units), [0.5])
+
+        let (second, secondHost) = await remoteManager(defaults: defaults)
+        second.requestBolus(0.5, requestedAt: Date())
+        try await waitUntil { self.logged(secondHost, "Bolus request rejected by Luped's checks: rateLimited") }
+        XCTAssertFalse(secondHost.events.contains { $0.hasPrefix("bolus") })
+    }
+
+    /// Bolus history keeps 24 hours; an attempt is replaced by what was delivered.
+    func testBolusHistoryBookkeeping() {
+        let history = LupedRemoteHistory(defaults: isolatedDefaults())
+        let old = SmartwatchBolusPolicy.Delivery(date: Date(timeIntervalSinceNow: -25 * 3_600), units: 2)
+        let recent = SmartwatchBolusPolicy.Delivery(date: Date(timeIntervalSinceNow: -3_600), units: 1)
+        history.bolusDeliveries = [old, recent]
+        XCTAssertEqual(history.bolusDeliveries, [recent], "pruned to 24 h")
+
+        let attemptedAt = Date()
+        history.bolusDeliveries = LupedRemoteHistory.bolusAttempted(at: attemptedAt, in: history.bolusDeliveries)
+        XCTAssertEqual(history.bolusDeliveries.last, SmartwatchBolusPolicy.Delivery(date: attemptedAt, units: 0))
+        history.bolusDeliveries = LupedRemoteHistory.bolusDelivered(0.75, attemptedAt: attemptedAt, in: history.bolusDeliveries)
+        XCTAssertEqual(history.bolusDeliveries.map(\.units), [1, 0.75])
+
+        let refusedAt = attemptedAt.addingTimeInterval(1)
+        history.bolusDeliveries = LupedRemoteHistory.bolusAttempted(at: refusedAt, in: history.bolusDeliveries)
+        history.bolusDeliveries = LupedRemoteHistory.bolusAttemptRefused(at: refusedAt, in: history.bolusDeliveries)
+        XCTAssertEqual(history.bolusDeliveries.map(\.units), [1, 0.75], "a refusal by the host sent nothing, so it starts no gap")
+
+        history.lastCarbEntry = attemptedAt
+        XCTAssertEqual(LupedRemoteHistory(defaults: history.defaults).lastCarbEntry, attemptedAt)
+    }
+
+    /// With carbs, the carbs go to the host first, then the bolus is checked
+    /// against a context whose recommendation counts them.
+    func testBolusWithCarbsAddsTheCarbsFirst() async throws {
+        let (manager, delegate) = await remoteManager(defaults: isolatedDefaults())
+        delegate.events.removeAll()
+        manager.requestBolus(0.5, grams: 20, absorption: .slow, requestedAt: Date())
+        try await waitUntil { delegate.events.contains { $0.hasPrefix("bolus") } }
+        XCTAssertEqual(Array(delegate.events.prefix(3)), ["carbs 20 14400", "recommend 0.0", "bolus 0.50"])
+        XCTAssertNotNil(manager.remoteHistory.lastCarbEntry)
+    }
+
+    /// A refusal by Luped's own limits says so, with when the next entry may
+    /// come; the watch gets the same answer as before.
+    func testLupedsOwnCarbRefusalIsNamedAsSuch() async throws {
+        let (manager, delegate) = await remoteManager(defaults: isolatedDefaults())
+        manager.requestCarbs(20, requestedAt: Date())
+        try await waitUntil { delegate.events.contains { $0.hasPrefix("carbs") } }
+        manager.requestBolus(0.3, grams: 5, requestedAt: Date())
+        try await waitUntil { self.logged(delegate, "Luped's checks refused the watch's carbs (rateLimited), so the bolus isn't given either") }
+        XCTAssertTrue(delegate.logEntries.contains { $0.message.hasPrefix("Carb entry request rejected: rateLimited (5 min between entries from the watch; next at ") })
+        XCTAssertFalse(delegate.logEntries.contains { $0.message.hasPrefix("\(LupedSmartwatchManager.hostName) refused the watch's carbs") })
+        XCTAssertTrue(LupedSmartwatchManager.answer(for: LupedRemoteRefusal(error: SmartwatchCarbEntryError.rateLimited)) == ("refused", .tooSoon))
+        XCTAssertEqual(delegate.events.filter { $0.hasPrefix("carbs") || $0.hasPrefix("bolus") }.count, 1, "neither the carbs nor the bolus was passed on")
+    }
+
+    /// The carb entry takes its rate-limit slot before the host adds it, and
+    /// gets it back when adding fails.
+    func testCarbSlotIsGivenBackWhenAddingFails() async throws {
+        let (manager, delegate) = await remoteManager(defaults: isolatedDefaults())
+        delegate.carbEntryError = SmartwatchCarbEntryError.failed("store unavailable")
+        manager.requestCarbs(20, requestedAt: Date())
+        try await waitUntil { self.logged(delegate, "\(LupedSmartwatchManager.hostName) refused the watch's carb request") }
+        XCTAssertNil(manager.remoteHistory.lastCarbEntry)
+
+        delegate.carbEntryError = nil
+        manager.requestCarbs(20, requestedAt: Date())
+        try await waitUntil { delegate.events.filter { $0.hasPrefix("carbs") }.count == 2 }
+        XCTAssertNotNil(manager.remoteHistory.lastCarbEntry)
+        manager.requestCarbs(10, requestedAt: Date())
+        try await waitUntil { self.logged(delegate, "Carb entry request rejected: rateLimited") }
+    }
+
+    /// The watch's fast, medium and slow become the host's absorption times;
+    /// a host without them (Trio) tells Luped Remote not to ask, and an
+    /// absorption an older watch still sends is left out.
+    func testCarbAbsorptionMapsToTheHostsTimes() throws {
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false))
+        manager.hostData.displayUnit = .milligramsPerDeciliter
+        manager.hostData.glucoseSamples = [sample(120, minutes: 5)]
+        manager.hostData.carbAbsorptionTimes = LupedHostData.CarbAbsorptionTimes(fast: 7_200, medium: 10_800, slow: 14_400)
+        XCTAssertEqual(try XCTUnwrap(manager.lupedSnapshot()).usesCarbAbsorption, true)
+        XCTAssertEqual(manager.hostAbsorptionTime(.fast), 7_200)
+        XCTAssertEqual(manager.hostAbsorptionTime(.medium), 10_800)
+        XCTAssertEqual(manager.hostAbsorptionTime(.slow), 14_400)
+        XCTAssertNil(manager.hostAbsorptionTime(nil), "the host's default")
+
+        manager.hostData.carbAbsorptionTimes = nil
+        XCTAssertEqual(try XCTUnwrap(manager.lupedSnapshot()).usesCarbAbsorption, false)
+        XCTAssertNil(manager.hostAbsorptionTime(.slow))
+        XCTAssertNil(manager.hostAbsorptionTime(nil))
+    }
+
+    /// Rounding as `PumpManager` does by default: down to a supported volume.
+    func testBolusRoundsDownToASupportedVolume() {
+        let volumes = [0.05, 0.1, 0.15, 0.2]
+        XCTAssertEqual(LupedSmartwatchManager.roundToSupportedBolusVolume(0.12, volumes: volumes), 0.1)
+        XCTAssertEqual(LupedSmartwatchManager.roundToSupportedBolusVolume(0.01, volumes: volumes), 0)
+        XCTAssertEqual(LupedSmartwatchManager.roundToSupportedBolusVolume(0.12, volumes: []), 0.12, "no pump: the host refuses")
+    }
+}
+
+/// A host for the tests: what it returns is set per test, and its reads and
+/// actions are recorded.
 private final class MockSmartwatchManagerDelegate: SmartwatchManagerDelegate {
-    var logEntries: [SmartwatchDeviceLogEntry] = []
+    struct LogEntry {
+        var deviceIdentifier: String?
+        var type: DeviceLogEntryType
+        var message: String
+    }
+
+    var logEntries: [LogEntry] = []
     var stateUpdates = 0
     var deletions = 0
+    /// The reads in order, by short name.
+    var reads: [String] = []
+
+    var displayUnit: LoopUnit = .milligramsPerDeciliter
+    var glucoseSamples: [StoredGlucoseSample] = []
+    var loopState = SmartwatchLoopState(lastLoopCompleted: nil, isClosedLoop: true)
+    var maximumBolus: Double? = 5
+    var maximumCarbEntry: Double? = 250
+    var supportedBolusVolumes = (1...600).map { Double($0) / 20 }
+    var carbAbsorptionTimes: (fast: TimeInterval, medium: TimeInterval, slow: TimeInterval)? = (2 * 3_600, 3 * 3_600, 4 * 3_600)
+    var recommendation: Result<Double, Error> = .failure(SmartwatchBolusError.refusedByHost("no recommendation"))
+    var recommendationRequests: [Double] = []
 
     func smartwatchManagerDidUpdateState(_ manager: SmartwatchManager) { stateUpdates += 1 }
     func smartwatchManagerWantsDeletion(_ manager: SmartwatchManager) async { deletions += 1 }
-    var refreshRequests = 0
-    func smartwatchManagerRequestsRefresh(_ manager: SmartwatchManager) { refreshRequests += 1 }
-    func smartwatchManager(_ manager: SmartwatchManager, didLogEvent event: SmartwatchDeviceLogEntry) { logEntries.append(event) }
-    var recommendationRequests: [Double] = []
-    var recommendation: Result<SmartwatchBolusRecommendation, Error> = .failure(SmartwatchBolusError.notAllowed)
-    func smartwatchManager(_ manager: SmartwatchManager, recommendBolusFor request: SmartwatchBolusRecommendationRequest) async throws -> SmartwatchBolusRecommendation {
-        recommendationRequests.append(request.grams)
+
+    // MARK: DeviceManagerDelegate
+
+    func deviceManager(_ manager: DeviceManager, logEventForDeviceIdentifier deviceIdentifier: String?, type: DeviceLogEntryType, message: String, completion: ((Error?) -> Void)?) {
+        logEntries.append(LogEntry(deviceIdentifier: deviceIdentifier, type: type, message: message))
+    }
+    func issueAlert(_ alert: Alert) async {}
+    func retractAlert(identifier: Alert.Identifier) async {}
+    func doesIssuedAlertExist(identifier: Alert.Identifier) async throws -> Bool { false }
+    func lookupAllUnretracted(managerIdentifier: String) async throws -> [PersistedAlert] { [] }
+    func lookupAllUnacknowledgedUnretracted(managerIdentifier: String) async throws -> [PersistedAlert] { [] }
+    func recordRetractedAlert(_ alert: Alert, at date: Date) async throws {}
+
+    // MARK: Reads
+
+    func smartwatchManagerGlucoseDisplayUnit(_ manager: SmartwatchManager) async -> LoopUnit {
+        reads.append("unit")
+        return displayUnit
+    }
+    func smartwatchManager(_ manager: SmartwatchManager, glucoseSamplesSince date: Date) async throws -> [StoredGlucoseSample] {
+        reads.append("glucose")
+        return glucoseSamples.filter { $0.startDate >= date }
+    }
+    func smartwatchManagerLoopState(_ manager: SmartwatchManager) async -> SmartwatchLoopState {
+        reads.append("loop")
+        return loopState
+    }
+    func smartwatchManagerScheduledBasalRate(_ manager: SmartwatchManager) async -> LoopQuantity? {
+        reads.append("therapy")
+        return nil
+    }
+    func smartwatchManagerTempBasal(_ manager: SmartwatchManager) async -> DoseEntry? { nil }
+    func smartwatchManagerInsulinSensitivity(_ manager: SmartwatchManager) async -> LoopQuantity? { nil }
+    func smartwatchManagerCorrectionRange(_ manager: SmartwatchManager) async -> ClosedRange<LoopQuantity>? { nil }
+    func smartwatchManagerOverridePresets(_ manager: SmartwatchManager) async -> [TemporaryPreset] {
+        reads.append("presets")
+        return []
+    }
+    func smartwatchManagerActiveOverride(_ manager: SmartwatchManager) async -> TemporaryScheduleOverride? { nil }
+    func smartwatchManagerAlertMuteEnd(_ manager: SmartwatchManager) async -> Date? { nil }
+    func smartwatchManagerMaximumBolus(_ manager: SmartwatchManager) async -> Double? { maximumBolus }
+    func smartwatchManagerMaximumCarbEntry(_ manager: SmartwatchManager) async -> Double? { maximumCarbEntry }
+    func smartwatchManagerSupportedBolusVolumes(_ manager: SmartwatchManager) async -> [Double] { supportedBolusVolumes }
+    func smartwatchManagerDefaultCarbAbsorptionTimes(_ manager: SmartwatchManager) async -> (fast: TimeInterval, medium: TimeInterval, slow: TimeInterval)? {
+        reads.append("absorption")
+        return carbAbsorptionTimes
+    }
+
+    func smartwatchManager(_ manager: SmartwatchManager, recommendBolusForCarbs grams: Double, absorptionTime: TimeInterval?) async throws -> Double {
+        recommendationRequests.append(grams)
+        events.append("recommend \(grams)")
         return try recommendation.get()
+    }
+
+    // MARK: Actions
+
+    /// The actions in order, such as "carbs 20 10800" (grams, absorption time
+    /// in seconds or -1 for the default) or "bolus 0.50".
+    var events: [String] = []
+    /// `nil` delivers what was asked.
+    var bolusError: Error?
+    var carbEntryError: Error?
+
+    func smartwatchManager(_ manager: SmartwatchManager, deliverBolus units: Double) async throws -> Double {
+        events.append(String(format: "bolus %.2f", units))
+        if let bolusError { throw bolusError }
+        return units
+    }
+    func smartwatchManager(_ manager: SmartwatchManager, addCarbEntry grams: Double, absorptionTime: TimeInterval?, date: Date) async throws -> Double {
+        events.append("carbs \(Int(grams)) \(absorptionTime.map { Int($0) } ?? -1)")
+        if let carbEntryError { throw carbEntryError }
+        return grams
+    }
+    func smartwatchManager(_ manager: SmartwatchManager, enactOverride action: SmartwatchPresetAction) async throws {
+        events.append("override")
+    }
+    func smartwatchManager(_ manager: SmartwatchManager, muteAlertsFor duration: TimeInterval) async throws -> Date {
+        events.append("mute")
+        return Date(timeIntervalSinceNow: duration)
     }
 }
 
@@ -511,16 +1046,4 @@ final class LupedSetupProgressTests: XCTestCase {
     func testADeliveredReadingStaysDoneAfterTheLinkDrops() {
         XCTAssertEqual(progress(.waitingForWatch, delivered: reading), .delivered(readingDate: reading))
     }
-}
-
-/// Declares only glucose but asks for more.
-private final class GreedySmartwatchManager: SmartwatchManager {
-    static var capabilities: SmartwatchCapabilities { [.glucose] }
-    var requestedCapabilities: SmartwatchCapabilities { [.glucose, .prediction, .loopStatus] }
-    var pluginIdentifier: String { "Greedy" }
-    weak var smartwatchManagerDelegate: SmartwatchManagerDelegate?
-    init() {}
-    init?(rawState: RawStateValue) {}
-    var rawState: RawStateValue { [:] }
-    func watchDataDidUpdate(_ snapshot: SmartwatchStatusSnapshot) {}
 }
