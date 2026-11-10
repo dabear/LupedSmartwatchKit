@@ -892,6 +892,64 @@ extension LupedSmartwatchManagerTests {
         XCTAssertNil(manager.hostAbsorptionTime(nil))
     }
 
+    /// A set of absorption times with any zero, negative, NaN or infinite value
+    /// is treated as none: Luped Remote doesn't ask, carbs get the host's
+    /// default, and each read that returns one logs it once.
+    func testUnusableCarbAbsorptionTimesAreTreatedAsNone() async throws {
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false))
+        let delegate = MockSmartwatchManagerDelegate()
+        delegate.glucoseSamples = [sample(120, minutes: 5)]
+        manager.smartwatchManagerDelegate = delegate
+        let unusable: [(fast: TimeInterval, medium: TimeInterval, slow: TimeInterval)] = [
+            (0, 10_800, 14_400), (7_200, -1, 14_400), (7_200, 10_800, .nan), (.infinity, 10_800, 14_400),
+        ]
+        for times in unusable {
+            delegate.logEntries.removeAll()
+            delegate.carbAbsorptionTimes = times
+            manager.hostDataDidChange(.settings)
+            manager.flushHostChanges()
+            await manager.hostReadTask?.value
+            XCTAssertNil(manager.hostData.carbAbsorptionTimes, "\(times)")
+            XCTAssertEqual(try XCTUnwrap(manager.lupedSnapshot()).usesCarbAbsorption, false)
+            XCTAssertNil(manager.hostAbsorptionTime(.medium))
+            XCTAssertEqual(delegate.logEntries.filter { $0.type == .error && $0.message.contains("carb absorption times aren't usable") }.count, 1)
+        }
+
+        delegate.logEntries.removeAll()
+        manager.hostDataDidChange(.glucose)
+        manager.flushHostChanges()
+        await manager.hostReadTask?.value
+        XCTAssertFalse(delegate.logEntries.contains { $0.message.contains("aren't usable") }, "only a settings read checks them")
+
+        delegate.carbAbsorptionTimes = (1_800, 10_800, 14_400)
+        manager.hostDataDidChange(.settings)
+        manager.flushHostChanges()
+        await manager.hostReadTask?.value
+        XCTAssertEqual(manager.hostData.carbAbsorptionTimes, LupedHostData.CarbAbsorptionTimes(fast: 1_800, medium: 10_800, slow: 14_400))
+        XCTAssertEqual(manager.hostAbsorptionTime(.fast), 1_800)
+        XCTAssertFalse(delegate.logEntries.contains { $0.message.contains("aren't usable") })
+    }
+
+    /// Carbs from the watch with unusable absorption times reach the host
+    /// with its default; with usable ones, with the chosen time.
+    func testCarbsGetTheHostsDefaultWithUnusableAbsorptionTimes() async throws {
+        let (manager, delegate) = await remoteManager(defaults: isolatedDefaults())
+        delegate.carbAbsorptionTimes = (7_200, 0, 14_400)
+        manager.hostDataDidChange(.settings)
+        manager.flushHostChanges()
+        await manager.hostReadTask?.value
+        delegate.events.removeAll()
+        manager.requestCarbs(20, absorption: .medium, requestedAt: Date())
+        try await waitUntil { delegate.events.contains { $0.hasPrefix("carbs") } }
+        XCTAssertEqual(delegate.events.first { $0.hasPrefix("carbs") }, "carbs 20 -1")
+
+        let (validManager, validDelegate) = await remoteManager(defaults: isolatedDefaults())
+        validDelegate.events.removeAll()
+        validManager.requestCarbs(20, absorption: .medium, requestedAt: Date())
+        try await waitUntil { validDelegate.events.contains { $0.hasPrefix("carbs") } }
+        XCTAssertEqual(validDelegate.events.first { $0.hasPrefix("carbs") }, "carbs 20 10800")
+    }
+
     /// Rounding as `PumpManager` does by default: down to a supported volume.
     func testBolusRoundsDownToASupportedVolume() {
         let volumes = [0.05, 0.1, 0.15, 0.2]

@@ -51,7 +51,8 @@ Everything is converted to mg/dL at the edge; the display unit goes separately.
 - One message per reading: a new reading waits for the loop's result (at most
   10 s), then 6 s for its dose to be stored, so IOB goes in the same message.
 - An alarm goes out at once, with the previous reading (the host alerts before
-  its snapshot has the new one); the alarm's own reading follows at once.
+  the plugin has read the new one from it); the alarm's own reading follows
+  once it has.
 - Data the watch already has, or is about to get, isn't sent again; a quick
   A, B, A setting change still ends with A.
 - A watchface start is answered once, though Luped asks twice (Alloy's ready

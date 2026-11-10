@@ -263,12 +263,12 @@ extension LupedSmartwatchManager {
 
     /// The host's absorption time for the watch's fast, medium or slow; `nil`
     /// keeps the host's default. Left out when the host has no per-entry
-    /// absorption (an older Luped Remote still sends it).
+    /// absorption or no usable times (an older Luped Remote still sends it).
     @MainActor
     func hostAbsorptionTime(_ absorption: LupedCarbAbsorption?) -> TimeInterval? {
         guard let absorption else { return nil }
         guard let times = hostData.carbAbsorptionTimes else {
-            logNote("\(Self.hostName) doesn't use carb absorption: the watch's \(absorption.rawValue) is left out", kind: .info)
+            logNote("No carb absorption times from \(Self.hostName): the watch's \(absorption.rawValue) is left out", kind: .info)
             return nil
         }
         return times.time(for: absorption)

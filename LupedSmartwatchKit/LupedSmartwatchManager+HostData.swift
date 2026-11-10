@@ -26,8 +26,8 @@ struct LupedHostData {
     var loopState: SmartwatchLoopState?
     var therapy: Therapy?
     var presets: Presets?
-    /// `nil` for a host whose carbs have no per-entry absorption time (Trio):
-    /// Luped Remote then doesn't ask for one.
+    /// `nil` for a host whose carbs have no per-entry absorption time (Trio),
+    /// or whose times aren't usable: Luped Remote then doesn't ask for one.
     var carbAbsorptionTimes: CarbAbsorptionTimes?
 
     struct Therapy {
@@ -166,9 +166,7 @@ extension LupedSmartwatchManager {
         let reads = hostReads
         if changes.contains(.settings) {
             hostData.displayUnit = await delegate.smartwatchManagerGlucoseDisplayUnit(self)
-            hostData.carbAbsorptionTimes = await delegate.smartwatchManagerDefaultCarbAbsorptionTimes(self).map {
-                LupedHostData.CarbAbsorptionTimes(fast: $0.fast, medium: $0.medium, slow: $0.slow)
-            }
+            hostData.carbAbsorptionTimes = usableCarbAbsorptionTimes(await delegate.smartwatchManagerDefaultCarbAbsorptionTimes(self))
         }
         if changes.contains(.glucose) {
             do {
@@ -210,6 +208,20 @@ extension LupedSmartwatchManager {
         if reads.remote {
             await issueBolusContext(delegate)
         }
+    }
+
+    /// The host's absorption times, or `nil` when it has none or any of them
+    /// isn't a finite time above zero. Such a set is treated as none, so it is
+    /// never passed back to the host: Luped Remote doesn't ask, and carbs get
+    /// the host's default. Logged on each settings read that returns one.
+    @MainActor
+    func usableCarbAbsorptionTimes(_ times: (fast: TimeInterval, medium: TimeInterval, slow: TimeInterval)?) -> LupedHostData.CarbAbsorptionTimes? {
+        guard let times else { return nil }
+        guard [times.fast, times.medium, times.slow].allSatisfy({ $0.isFinite && $0 > 0 }) else {
+            logNote("\(Self.hostName)'s carb absorption times aren't usable (fast \(times.fast) s, medium \(times.medium) s, slow \(times.slow) s): the watch's choice is left out and carbs get \(Self.hostName)'s default", kind: .error)
+            return nil
+        }
+        return LupedHostData.CarbAbsorptionTimes(fast: times.fast, medium: times.medium, slow: times.slow)
     }
 
     /// Issues the bolus context from the host's recommendation now, its maximum
