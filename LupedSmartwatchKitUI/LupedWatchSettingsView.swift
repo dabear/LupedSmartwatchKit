@@ -18,9 +18,14 @@ final class LupedSettingsModel: ObservableObject {
         didSet { manager.settings = settings }
     }
 
+    @Published var remotePermissions: LupedRemotePermissions {
+        didSet { manager.remotePermissions = remotePermissions }
+    }
+
     init(manager: LupedSmartwatchManager) {
         self.manager = manager
         settings = manager.settings
+        remotePermissions = manager.remotePermissions
     }
 }
 
@@ -90,7 +95,7 @@ struct LupedWatchSettingsView: View {
                 }
             }
 
-            // Only with a remote capability declared (`offersLupedRemote`).
+            // Only while Luped Remote is offered (`offersLupedRemote`).
             if LupedSmartwatchManager.offersLupedRemote {
                 Section {
                     Toggle(LocalizedString("Luped Remote", comment: "Toggle serving the Luped Remote watchapp"), isOn: $model.settings.remoteEnabled)
@@ -104,10 +109,14 @@ struct LupedWatchSettingsView: View {
                 } footer: {
                     // Short, and only what the user needs for the toggle's state.
                     if model.settings.remoteEnabled {
-                        Text(String(format: LocalizedString("Allow each action in %1$@'s Watch Permissions. On the watch, Settings → Quick Launch → Tap Up opens it.", comment: "Footer for the Luped Remote settings while it is on (1: app name)"), LupedSmartwatchManager.hostName))
+                        Text(LocalizedString("Allow each request below. On the watch, Settings → Quick Launch → Tap Up opens it.", comment: "Footer for the Luped Remote settings while it is on"))
                     } else {
                         Text(String(format: LocalizedString("A watch app for asking %1$@ to mute alerts, add carbs, use presets or give a bolus.", comment: "Footer for the Luped Remote settings while it is off (1: app name)"), LupedSmartwatchManager.hostName))
                     }
+                }
+
+                if model.settings.remoteEnabled {
+                    LupedRemotePermissionsSection(permissions: $model.remotePermissions, showsTempTargets: model.manager.hostHasTempTargets)
                 }
             }
 
@@ -145,6 +154,30 @@ struct LupedWatchSettingsView: View {
             }
         } message: {
             Text(String(format: LocalizedString("%@ stops sending to the watch and removes the Pebble settings. You can add it again under Devices.", comment: "Delete Pebble confirmation message (1: app name)"), LupedSmartwatchManager.hostName))
+        }
+    }
+}
+
+/// Which requests Luped Remote may send, each off until turned on. The host
+/// app no longer asks; these switches decide.
+struct LupedRemotePermissionsSection: View {
+    @Binding var permissions: LupedRemotePermissions
+    /// Only for host apps that have temp target presets (Trio).
+    let showsTempTargets: Bool
+
+    var body: some View {
+        Section {
+            Toggle(LocalizedString("Allow Boluses from Watch", comment: "Toggle allowing Luped Remote to request boluses"), isOn: $permissions.bolus)
+            Toggle(LocalizedString("Allow Carbs from Watch", comment: "Toggle allowing Luped Remote to add carbs"), isOn: $permissions.carbs)
+            Toggle(LocalizedString("Allow Mute from Watch", comment: "Toggle allowing Luped Remote to mute alerts"), isOn: $permissions.mute)
+            Toggle(LocalizedString("Allow Presets from Watch", comment: "Toggle allowing Luped Remote to start and end presets"), isOn: $permissions.overrides)
+            if showsTempTargets || permissions.tempTargets {
+                Toggle(LocalizedString("Allow Temp Targets from Watch", comment: "Toggle allowing Luped Remote to start and end temp targets"), isOn: $permissions.tempTargets)
+            }
+        } header: {
+            Text(LocalizedString("Allowed from Watch", comment: "Header for the switches allowing each Luped Remote request"))
+        } footer: {
+            Text(String(format: LocalizedString("Off until you turn them on, and off again when the Pebble is deleted. You confirm each request on the watch, and %1$@ still applies its own limits, such as Maximum Bolus.", comment: "Footer for the Luped Remote request switches (1: app name)"), LupedSmartwatchManager.hostName))
         }
     }
 }
