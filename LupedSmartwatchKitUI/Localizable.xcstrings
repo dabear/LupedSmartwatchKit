@@ -1,0 +1,1392 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%1$@ sends each new glucose reading to your Pebble as soon as it arrives, and the watch buzzes when %1$@ raises a glucose alert." : {
+      "comment" : "Pebble setup introduction (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ sender hver nye glukosemåling til Pebble-klokken så snart den kommer, og klokken vibrerer når %1$@ gir et glukosevarsel."
+          }
+        }
+      }
+    },
+    "%1$d (%2$d min total)" : {
+      "comment" : "Pebble watch info: disconnect count and total minutes",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$d (%2$d min totalt)"
+          }
+        }
+      }
+    },
+    "%@ is ready for the watch" : {
+      "comment" : "Pebble setup step: Bluetooth service published (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ er klar for klokken"
+          }
+        }
+      }
+    },
+    "%@ sends the next glucose reading as soon as it arrives. Tap Send Now to send the latest one." : {
+      "comment" : "Pebble setup detail: connected, no reading yet (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ sender neste glukosemåling så snart den kommer. Trykk på Send nå for å sende den siste."
+          }
+        }
+      }
+    },
+    "%@ sends your readings and alerts to the Pebble over Bluetooth." : {
+      "comment" : "Footer explaining the Pebble smartwatch device (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ sender målingene og varslene dine til Pebble-klokken over Bluetooth."
+          }
+        }
+      }
+    },
+    "%@ stops sending to the watch and removes the Pebble settings. You can add it again under Devices." : {
+      "comment" : "Delete Pebble confirmation message (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ slutter å sende til klokken og fjerner Pebble-innstillingene. Du kan legge den til igjen under Enheter."
+          }
+        }
+      }
+    },
+    "%d ms" : {
+      "comment" : "Pebble round trip in milliseconds (1: milliseconds)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d ms"
+          }
+        }
+      }
+    },
+    "A large glucose ring with the reading time inside it, without graph, status line or last loop." : {
+      "comment" : "Footer for the Pebble Large Glucose layout",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En stor glukosering med målingstiden inni, uten graf, statuslinje eller siste loop."
+          }
+        }
+      }
+    },
+    "A watch app for asking %1$@ to mute alerts, add carbs, use presets or give a bolus." : {
+      "comment" : "Footer for the Luped Remote settings while it is off (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En klokkeapp for å be %1$@ om å dempe varsler, legge inn karbohydrater, bruke forhåndsinnstillinger eller gi en bolus."
+          }
+        }
+      }
+    },
+    "Add Pebble" : {
+      "comment" : "Button adding the Pebble watch",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legg til Pebble"
+          }
+        }
+      }
+    },
+    "Advanced" : {
+      "comment" : "Row opening advanced Pebble settings",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avansert"
+          }
+        }
+      }
+    },
+    "Alarm Sound" : {
+      "comment" : "Picker choosing which glucose alarms the Pebble also sounds",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alarmlyd"
+          }
+        }
+      }
+    },
+    "Alarms" : {
+      "comment" : "Header for the Pebble alarm settings",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alarmer"
+          }
+        }
+      }
+    },
+    "All Glucose Alarms" : {
+      "comment" : "Pebble alarm sound choice: every glucose alarm",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle glukosealarmer"
+          }
+        }
+      }
+    },
+    "Allow Boluses from Watch" : {
+      "comment" : "Toggle allowing Luped Remote to request boluses",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tillat bolus fra klokken"
+          }
+        }
+      }
+    },
+    "Allow Carbs from Watch" : {
+      "comment" : "Toggle allowing Luped Remote to add carbs",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tillat karbohydrater fra klokken"
+          }
+        }
+      }
+    },
+    "Allow Mute from Watch" : {
+      "comment" : "Toggle allowing Luped Remote to mute alerts",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tillat demping fra klokken"
+          }
+        }
+      }
+    },
+    "Allow Presets from Watch" : {
+      "comment" : "Toggle allowing Luped Remote to start and end presets",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tillat forhåndsinnstillinger fra klokken"
+          }
+        }
+      }
+    },
+    "Allow Temp Targets from Watch" : {
+      "comment" : "Toggle allowing Luped Remote to start and end temp targets",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tillat midlertidige mål fra klokken"
+          }
+        }
+      }
+    },
+    "Allow each request below. On the watch, Settings → Quick Launch → Tap Up opens it." : {
+      "comment" : "Footer for the Luped Remote settings while it is on",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tillat hver forespørsel nedenfor. På klokken åpner Innstillinger → Quick Launch → Tap Up appen."
+          }
+        }
+      }
+    },
+    "Allowed from Watch" : {
+      "comment" : "Header for the switches allowing each Luped Remote request",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tillatt fra klokken"
+          }
+        }
+      }
+    },
+    "Are you sure you want to delete this Pebble?" : {
+      "comment" : "Delete Pebble confirmation title",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er du sikker på at du vil slette denne Pebble-klokken?"
+          }
+        }
+      }
+    },
+    "Battery" : {
+      "comment" : "Pebble watch info: battery",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batteri"
+          }
+        }
+      }
+    },
+    "Before You Start" : {
+      "comment" : "Header for the Pebble setup checklist",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Før du begynner"
+          }
+        }
+      }
+    },
+    "Bluetooth Is Off" : {
+      "comment" : "Pebble setup title: Bluetooth unavailable",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bluetooth er av"
+          }
+        }
+      }
+    },
+    "Bluetooth unavailable" : {
+      "comment" : "Pebble link status: Bluetooth off or unauthorized",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bluetooth er utilgjengelig"
+          }
+        }
+      }
+    },
+    "Cancel" : {
+      "comment" : "Button cancelling Pebble setup",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avbryt"
+          }
+        }
+      }
+    },
+    "Communication Log" : {
+      "comment" : "Title of the Pebble communication log",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kommunikasjonslogg"
+          }
+        }
+      }
+    },
+    "Connected" : {
+      "comment" : "Pebble setup title: connected, no reading yet",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tilkoblet"
+          }
+        }
+      }
+    },
+    "Connected · Luped CGM not open" : {
+      "comment" : "Pebble link status: connected but the watch rejected the reading",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tilkoblet · Luped CGM er ikke åpen"
+          }
+        }
+      }
+    },
+    "Connected · Luped CGM not open, sending paused" : {
+      "comment" : "Pebble link status: sending paused after repeated rejections",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tilkoblet · Luped CGM er ikke åpen, sending satt på pause"
+          }
+        }
+      }
+    },
+    "Connected · Luped Remote open" : {
+      "comment" : "Pebble link status: the watch runs Luped Remote",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tilkoblet · Luped Remote er åpen"
+          }
+        }
+      }
+    },
+    "Connecting" : {
+      "comment" : "Pebble setup title: connecting",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kobler til"
+          }
+        }
+      }
+    },
+    "Counting since" : {
+      "comment" : "Pebble watch info: diagnostics window start",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telles fra"
+          }
+        }
+      }
+    },
+    "Delete Pebble" : {
+      "comment" : "Button removing the Pebble smartwatch",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slett Pebble"
+          }
+        }
+      }
+    },
+    "Delivered" : {
+      "comment" : "Pebble status row: when the watch acknowledged the reading",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Levert"
+          }
+        }
+      }
+    },
+    "Diagnostics" : {
+      "comment" : "Title of the Pebble diagnostics screen",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diagnostikk"
+          }
+        }
+      }
+    },
+    "Display" : {
+      "comment" : "Header for the Pebble display settings",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visning"
+          }
+        }
+      }
+    },
+    "Done" : {
+      "comment" : "Button finishing Pebble setup",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ferdig"
+          }
+        }
+      }
+    },
+    "Enter a UUID such as %@." : {
+      "comment" : "Footer shown for an invalid Pebble watchface UUID (1: example UUID)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skriv inn en UUID som %@."
+          }
+        }
+      }
+    },
+    "Eventual Glucose" : {
+      "comment" : "Pebble status line choice: predicted eventual glucose",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eventuell glukose"
+          }
+        }
+      }
+    },
+    "Everything %1$@ sends to and receives from the watch since %1$@ started, newest first. The same lines are kept in %1$@'s device log for issue reports." : {
+      "comment" : "Footer for the Pebble log section (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alt %1$@ har sendt til og mottatt fra klokken siden %1$@ startet, nyeste først. De samme linjene lagres i enhetsloggen til %1$@ for feilrapporter."
+          }
+        }
+      }
+    },
+    "Find My Pebble" : {
+      "comment" : "Button making the Pebble watch buzz and beep so it can be found",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finn Pebble-klokken"
+          }
+        }
+      }
+    },
+    "Get Luped CGM" : {
+      "comment" : "Link to the Luped CGM watchface in the Pebble app store",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hent Luped CGM"
+          }
+        }
+      }
+    },
+    "Get Luped Remote from the Pebble app store" : {
+      "comment" : "Link to Luped Remote's page in the Pebble app store",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hent Luped Remote i Pebble-appbutikken"
+          }
+        }
+      }
+    },
+    "Graph" : {
+      "comment" : "Pebble layout choice: glucose ring with a trend graph, status line and last loop",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Graf"
+          }
+        }
+      }
+    },
+    "IOB & COB" : {
+      "comment" : "Pebble status line choice: insulin and carbs on board",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IOB og COB"
+          }
+        }
+      }
+    },
+    "IOB and COB" : {
+      "comment" : "Item in the Pebble 'sent to the watch' list",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IOB og COB"
+          }
+        }
+      }
+    },
+    "ISF & Target" : {
+      "comment" : "Pebble status line choice: insulin sensitivity and correction range",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ISF og mål"
+          }
+        }
+      }
+    },
+    "ISF and target" : {
+      "comment" : "Item in the Pebble 'sent to the watch' list",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ISF og mål"
+          }
+        }
+      }
+    },
+    "Install the Luped CGM watchface." : {
+      "comment" : "Pebble setup checklist: install the watchface",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installer urskiven Luped CGM."
+          }
+        }
+      }
+    },
+    "Installed, not open" : {
+      "comment" : "Luped Remote status: it has run, but the watch runs the watchface now",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installert, ikke åpen"
+          }
+        }
+      }
+    },
+    "Keep the watch nearby with the Pebble app running. The watch finds %@ by itself; this can take a minute." : {
+      "comment" : "Pebble setup detail: waiting for the watch (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold klokken i nærheten med Pebble-appen i gang. Klokken finner %@ selv; dette kan ta et minutt."
+          }
+        }
+      }
+    },
+    "Large Glucose" : {
+      "comment" : "Pebble layout choice: a full-screen glucose ring only",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stor glukose"
+          }
+        }
+      }
+    },
+    "Last Loop" : {
+      "comment" : "Toggle showing the minutes since the last loop on the Pebble",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Siste loop"
+          }
+        }
+      }
+    },
+    "Last Reading" : {
+      "comment" : "Pebble status row: time of the last delivered glucose reading",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Siste måling"
+          }
+        }
+      }
+    },
+    "Layout" : {
+      "comment" : "Picker choosing the Pebble watch layout",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oppsett"
+          }
+        }
+      }
+    },
+    "Luped Remote" : {
+      "comment" : "Toggle serving the Luped Remote watchapp",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Luped Remote"
+          }
+        }
+      }
+    },
+    "Luped Remote UUID" : {
+      "comment" : "Header for the Luped Remote UUID",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UUID for Luped Remote"
+          }
+        }
+      }
+    },
+    "Make Luped CGM your watchface." : {
+      "comment" : "Pebble setup checklist: select the watchface",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bruk Luped CGM som urskive."
+          }
+        }
+      }
+    },
+    "Next Retry" : {
+      "comment" : "Pebble status row: time of the next delivery attempt",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neste forsøk"
+          }
+        }
+      }
+    },
+    "No status line or last loop; the watch doesn't show when %1$@ last looped." : {
+      "comment" : "Footer for the Pebble Graph layout with status line None and Last Loop off (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingen statuslinje eller siste loop; klokken viser ikke når %1$@ sist loopet."
+          }
+        }
+      }
+    },
+    "No status line. Last Loop shows the minutes since %1$@ last looped." : {
+      "comment" : "Footer for the Pebble Graph layout with status line None and Last Loop on (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingen statuslinje. Siste loop viser minuttene siden %1$@ sist loopet."
+          }
+        }
+      }
+    },
+    "No watch communication yet." : {
+      "comment" : "Shown when the Pebble communication log is empty",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingen kommunikasjon med klokken ennå."
+          }
+        }
+      }
+    },
+    "No watch info yet." : {
+      "comment" : "Shown before the Pebble watch has sent its first diagnostics report",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingen klokkeinfo ennå."
+          }
+        }
+      }
+    },
+    "None" : {
+      "comment" : "Pebble status line choice: nothing on the status line",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingen"
+          }
+        }
+      }
+    },
+    "Not seen on the watch yet" : {
+      "comment" : "Luped Remote status: the watch hasn't run it since the phone app started",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ikke sett på klokken ennå"
+          }
+        }
+      }
+    },
+    "Not yet" : {
+      "comment" : "Accessibility value for a pending Pebble setup step",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ikke ennå"
+          }
+        }
+      }
+    },
+    "Off" : {
+      "comment" : "Pebble alarm sound choice: no sound",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Av"
+          }
+        }
+      }
+    },
+    "Off until you turn them on, and off again when the Pebble is deleted. You confirm each request on the watch, and %1$@ still applies its own limits, such as Maximum Bolus." : {
+      "comment" : "Footer for the Luped Remote request switches (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Av til du slår dem på, og av igjen når Pebble-klokken slettes. Du bekrefter hver forespørsel på klokken, og %1$@ bruker fortsatt sine egne grenser, som maksimal bolus."
+          }
+        }
+      }
+    },
+    "Only new readings and alerts are sent, which uses the least watch battery." : {
+      "comment" : "Pebble footer: battery note when only glucose and alerts are sent",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bare nye målinger og varsler sendes, som bruker minst av klokkebatteriet."
+          }
+        }
+      }
+    },
+    "Open Luped CGM on Your Watch" : {
+      "comment" : "Pebble setup title: watchface not running",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Åpne Luped CGM på klokken"
+          }
+        }
+      }
+    },
+    "Open on the watch" : {
+      "comment" : "Luped Remote status: the watch runs it",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Åpen på klokken"
+          }
+        }
+      }
+    },
+    "Pair a Core Devices Pebble Time 2 or Pebble Round 2 in the Pebble app. Older Pebbles can't run Luped CGM." : {
+      "comment" : "Pebble setup checklist: pair a supported watch",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Par en Pebble Time 2 eller Pebble Round 2 fra Core Devices i Pebble-appen. Eldre Pebble-klokker kan ikke kjøre Luped CGM."
+          }
+        }
+      }
+    },
+    "Pebble" : {
+      "comment" : "Title of the Pebble setup screen",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pebble"
+          }
+        }
+      }
+    },
+    "Phone disconnects" : {
+      "comment" : "Pebble watch info: disconnects and total time",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frakoblinger fra telefonen"
+          }
+        }
+      }
+    },
+    "Quiet Time on the watch may silence the beep." : {
+      "comment" : "Pebble note: the watch's Quiet Time is on and may mute the alarm sound",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stilletid på klokken kan dempe pipet."
+          }
+        }
+      }
+    },
+    "Reading shown on the watch" : {
+      "comment" : "Pebble setup step: reading delivered",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Målingen vises på klokken"
+          }
+        }
+      }
+    },
+    "Readings received" : {
+      "comment" : "Pebble watch info: DATA messages received",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mottatte målinger"
+          }
+        }
+      }
+    },
+    "Refresh Watch Info" : {
+      "comment" : "Button requesting Pebble watch diagnostics",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oppdater klokkeinfo"
+          }
+        }
+      }
+    },
+    "Refresh requests" : {
+      "comment" : "Pebble watch info: refresh requests sent",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oppdateringsforespørsler"
+          }
+        }
+      }
+    },
+    "Remove this Pebble from any other diabetes app first: the watch follows one app at a time." : {
+      "comment" : "Pebble setup checklist: only one diabetes app may use the watch; the Pebble app pairing stays",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fjern først denne Pebble-klokken fra andre diabetesapper: klokken følger én app om gangen."
+          }
+        }
+      }
+    },
+    "Round Trip" : {
+      "comment" : "Pebble status row: send to acknowledgement time",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tur-retur"
+          }
+        }
+      }
+    },
+    "Save" : {
+      "comment" : "Button saving the Pebble watchface UUID",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lagre"
+          }
+        }
+      }
+    },
+    "Send Now" : {
+      "comment" : "Button pushing the current reading to the Pebble watch",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send nå"
+          }
+        }
+      }
+    },
+    "Sent to the watch: %@." : {
+      "comment" : "Pebble footer listing what the app sends to the watch (1: comma-separated list)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sendes til klokken: %@."
+          }
+        }
+      }
+    },
+    "Status" : {
+      "comment" : "Luped Remote status row",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status"
+          }
+        }
+      }
+    },
+    "Status Line" : {
+      "comment" : "Picker choosing what the Pebble status line shows",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Statuslinje"
+          }
+        }
+      }
+    },
+    "Stop Finding" : {
+      "comment" : "Button stopping Find My Pebble on the watch",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stopp søket"
+          }
+        }
+      }
+    },
+    "Temp Basal" : {
+      "comment" : "Pebble status line choice: current temp or scheduled basal rate",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Midlertidig basal"
+          }
+        }
+      }
+    },
+    "The UUID from Luped Remote's package.json, for a build of your own. It must differ from the watchface's." : {
+      "comment" : "Footer explaining the Luped Remote UUID",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UUID-en fra package.json i Luped Remote, for en egen versjon. Den må være forskjellig fra urskivens."
+          }
+        }
+      }
+    },
+    "The UUID from the watchface's package.json. The watchface must use Luped's AppMessage keys and must not use PebbleKit JS." : {
+      "comment" : "Footer explaining the Pebble watchface UUID",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UUID-en fra urskivens package.json. Urskiven må bruke Lupeds AppMessage-nøkler og kan ikke bruke PebbleKit JS."
+          }
+        }
+      }
+    },
+    "The reading from %1$@ is on your watch. New readings appear as soon as %2$@ receives them." : {
+      "comment" : "Pebble setup detail: done (1: reading time, 2: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Målingen fra %1$@ vises på klokken. Nye målinger vises så snart %2$@ mottar dem."
+          }
+        }
+      }
+    },
+    "The status line shows under the glucose ring and dims when %1$@ hasn't looped for 16 minutes. Last Loop is always shown with a status line." : {
+      "comment" : "Footer for the Pebble Graph layout with a status line chosen (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Statuslinjen vises under glukoseringen og dempes når %1$@ ikke har loopet på 16 minutter. Siste loop vises alltid sammen med en statuslinje."
+          }
+        }
+      }
+    },
+    "The watch also beeps for these alarms. Set its volume on the watch." : {
+      "comment" : "Footer for the Pebble alarm sound, shown while a sound is chosen",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klokken piper også for disse alarmene. Still inn volumet på klokken."
+          }
+        }
+      }
+    },
+    "The watch buzzes each time %1$@ alerts, and stays silent while %1$@'s alerts are muted. %1$@'s own alerts don't change." : {
+      "comment" : "Footer for the Pebble alarm settings (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klokken vibrerer hver gang %1$@ varsler, og er stille mens varslene til %1$@ er dempet. Varslene i %1$@ endres ikke."
+          }
+        }
+      }
+    },
+    "The watch found %@." : {
+      "comment" : "Pebble setup detail: connecting (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klokken fant %@."
+          }
+        }
+      }
+    },
+    "The watch is connected, but Luped CGM isn't the active watchface, so it can't show readings. Select it on the watch; %@ tries again by itself." : {
+      "comment" : "Pebble setup detail: watchface not running (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klokken er tilkoblet, men Luped CGM er ikke den aktive urskiven, så den kan ikke vise målinger. Velg den på klokken; %@ prøver igjen av seg selv."
+          }
+        }
+      }
+    },
+    "The watch may get an occasional extra update between readings." : {
+      "comment" : "Pebble footer: battery note when loop status or therapy values are sent",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klokken kan av og til få en ekstra oppdatering mellom målingene."
+          }
+        }
+      }
+    },
+    "The watch reports this about once an hour, covering at most the last 48 hours. Refresh Watch Info asks now; the reply can take up to 30 seconds." : {
+      "comment" : "Footer for the Pebble watch info section",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klokken rapporterer dette omtrent én gang i timen, for høyst de siste 48 timene. Oppdater klokkeinfo spør nå; svaret kan ta opptil 30 sekunder."
+          }
+        }
+      }
+    },
+    "There is nothing to pair in %1$@: the watch finds %1$@ over the Pebble app's Bluetooth connection." : {
+      "comment" : "Footer for the Pebble setup checklist (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det er ingenting å pare i %1$@: klokken finner %1$@ via Pebble-appens Bluetooth-tilkobling."
+          }
+        }
+      }
+    },
+    "This build of %1$@ can only update the watch while %1$@ is open." : {
+      "comment" : "Pebble setup warning when the app lacks the bluetooth-peripheral background mode (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Denne versjonen av %1$@ kan bare oppdatere klokken mens %1$@ er åpen."
+          }
+        }
+      }
+    },
+    "This is the watchface's UUID, so Luped Remote gets no connection of its own. Use a different one." : {
+      "comment" : "Footer when the Luped Remote UUID equals the watchface UUID",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dette er urskivens UUID, så Luped Remote får ingen egen tilkobling. Bruk en annen."
+          }
+        }
+      }
+    },
+    "Times data went stale" : {
+      "comment" : "Pebble watch info: stale transitions",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ganger dataene ble utdaterte"
+          }
+        }
+      }
+    },
+    "Turn on Bluetooth and allow %@ to use it in the Settings app." : {
+      "comment" : "Pebble setup detail: Bluetooth unavailable (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slå på Bluetooth og gi %@ tilgang til det i Innstillinger-appen."
+          }
+        }
+      }
+    },
+    "Turn on Watch Alarms to use Alarm Sound." : {
+      "comment" : "Pebble note: Alarm Sound needs Watch Alarms",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slå på Klokkealarmer for å bruke Alarmlyd."
+          }
+        }
+      }
+    },
+    "Updated" : {
+      "comment" : "Pebble watch info: time the snapshot arrived",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oppdatert"
+          }
+        }
+      }
+    },
+    "Urgent Low Only" : {
+      "comment" : "Pebble alarm sound choice: only urgent low alarms",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bare øyeblikkelig lav"
+          }
+        }
+      }
+    },
+    "Use Luped CGM Watchface" : {
+      "comment" : "Button restoring the default Pebble watchface UUID",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bruk urskiven Luped CGM"
+          }
+        }
+      }
+    },
+    "Use Luped Remote" : {
+      "comment" : "Button restoring the default Luped Remote UUID",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bruk Luped Remote"
+          }
+        }
+      }
+    },
+    "Uses a little more watch battery." : {
+      "comment" : "Pebble footer: battery note for the IOB & COB status line (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bruker litt mer av klokkebatteriet."
+          }
+        }
+      }
+    },
+    "Waiting for Your Pebble" : {
+      "comment" : "Pebble setup title: waiting for the watch",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Venter på Pebble-klokken"
+          }
+        }
+      }
+    },
+    "Waiting for the watch" : {
+      "comment" : "Pebble link status: no watch session",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Venter på klokken"
+          }
+        }
+      }
+    },
+    "Watch" : {
+      "comment" : "Header for the Pebble watch info section",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klokke"
+          }
+        }
+      }
+    },
+    "Watch Alarms" : {
+      "comment" : "Toggle enabling Pebble watch vibration alarms",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klokkealarmer"
+          }
+        }
+      }
+    },
+    "Watch App" : {
+      "comment" : "Header for the Luped Remote settings",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klokkeapp"
+          }
+        }
+      }
+    },
+    "Watch connected" : {
+      "comment" : "Pebble setup step: watch connected",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klokken er tilkoblet"
+          }
+        }
+      }
+    },
+    "Watchface UUID" : {
+      "comment" : "Header for the Pebble watchface UUID",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Urskivens UUID"
+          }
+        }
+      }
+    },
+    "You can finish now. %@ keeps connecting in the background, and Settings → Devices → Pebble shows the status." : {
+      "comment" : "Note below the Done button while Pebble setup is still in progress (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du kan avslutte nå. %@ fortsetter å koble til i bakgrunnen, og Innstillinger → Enheter → Pebble viser statusen."
+          }
+        }
+      }
+    },
+    "You can turn Watch Alarms off later in the Pebble settings; %@'s own alerts are unaffected." : {
+      "comment" : "Pebble setup note about watch alarms (1: app name)",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du kan slå av Klokkealarmer senere i Pebble-innstillingene; varslene til %@ påvirkes ikke."
+          }
+        }
+      }
+    },
+    "Your Pebble Is Set Up" : {
+      "comment" : "Pebble setup title: done",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pebble-klokken er klar"
+          }
+        }
+      }
+    },
+    "alerts" : {
+      "comment" : "Item in the Pebble 'sent to the watch' list",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "varsler"
+          }
+        }
+      }
+    },
+    "eventual glucose" : {
+      "comment" : "Item in the Pebble 'sent to the watch' list",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "eventuell glukose"
+          }
+        }
+      }
+    },
+    "glucose" : {
+      "comment" : "Item in the Pebble 'sent to the watch' list",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "glukose"
+          }
+        }
+      }
+    },
+    "last loop" : {
+      "comment" : "Item in the Pebble 'sent to the watch' list",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "siste loop"
+          }
+        }
+      }
+    },
+    "temp basal" : {
+      "comment" : "Item in the Pebble 'sent to the watch' list",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "midlertidig basal"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

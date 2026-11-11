@@ -1,0 +1,50 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "OK" : {
+      "comment" : "Alert acknowledge button",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
+    "Pebble" : {
+      "comment" : "Title of the Luped Pebble watch manager",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pebble"
+          }
+        }
+      }
+    },
+    "The watch is connected to the iPhone but not to %1$@, so it isn't getting new data. Close %1$@ completely and open it again." : {
+      "comment" : "Alert body: %1$@ is the app name",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klokken er koblet til iPhonen, men ikke til %1$@, så den får ikke nye data. Lukk %1$@ helt og åpne appen igjen."
+          }
+        }
+      }
+    },
+    "Watch not connected" : {
+      "comment" : "Alert title: the watch doesn't open a session with the app",
+      "localizations" : {
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klokken er ikke tilkoblet"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

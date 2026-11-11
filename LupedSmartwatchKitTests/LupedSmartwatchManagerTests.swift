@@ -1127,3 +1127,12 @@ final class LupedLinkStalledAlertTests: XCTestCase {
         XCTAssertEqual(issued.identifier, again.identifier)
     }
 }
+
+final class LupedLocalizationTests: XCTestCase {
+    func testNorwegianStringsShipWithTheFramework() throws {
+        let bundle = Bundle(for: LupedSmartwatchManager.self)
+        let path = try XCTUnwrap(bundle.path(forResource: "nb", ofType: "lproj"))
+        let norwegian = try XCTUnwrap(Bundle(path: path))
+        XCTAssertEqual(norwegian.localizedString(forKey: "Watch not connected", value: nil, table: nil), "Klokken er ikke tilkoblet")
+    }
+}
