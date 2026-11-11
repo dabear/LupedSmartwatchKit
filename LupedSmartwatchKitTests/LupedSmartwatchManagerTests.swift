@@ -1105,3 +1105,25 @@ final class LupedSetupProgressTests: XCTestCase {
         XCTAssertEqual(progress(.waitingForWatch, delivered: reading), .delivered(readingDate: reading))
     }
 }
+
+/// The notice for a watch that is connected to the iPhone but doesn't open a
+/// session with the app: about the watch, never glucose, and at most time-sensitive.
+@MainActor
+final class LupedLinkStalledAlertTests: XCTestCase {
+    func testAlertNamesTheHostAndTellsTheUserToRestartIt() {
+        let alert = LupedSmartwatchManager.linkStalledAlert(pluginIdentifier: "LupedSmartwatchManager", hostName: "Trio")
+        XCTAssertEqual(alert.identifier.managerIdentifier, "LupedSmartwatchManager")
+        XCTAssertEqual(alert.identifier.alertIdentifier, "watchLinkStalled")
+        XCTAssertEqual(alert.trigger, .immediate)
+        XCTAssertEqual(alert.interruptionLevel, .timeSensitive)
+        XCTAssertNil(alert.sound)
+        XCTAssertTrue(alert.backgroundContent.body.contains("Close Trio completely and open it again"), alert.backgroundContent.body)
+        XCTAssertEqual(alert.foregroundContent, alert.backgroundContent)
+    }
+
+    func testRetractionUsesTheSameIdentifier() {
+        let issued = LupedSmartwatchManager.linkStalledAlert(pluginIdentifier: "LupedSmartwatchManager", hostName: "Loop")
+        let again = LupedSmartwatchManager.linkStalledAlert(pluginIdentifier: "LupedSmartwatchManager", hostName: "Loop")
+        XCTAssertEqual(issued.identifier, again.identifier)
+    }
+}

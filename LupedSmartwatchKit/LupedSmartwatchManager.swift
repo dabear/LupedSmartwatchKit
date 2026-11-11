@@ -312,6 +312,9 @@ public final class LupedSmartwatchManager: SmartwatchManager {
         transport.tempTargetRequested = { [weak self] action, requestedAt in
             self?.requestTempTarget(action, requestedAt: requestedAt)
         }
+        transport.linkStalledDidChange = { [weak self] stalled in
+            self?.watchLinkStalledDidChange(stalled)
+        }
         if let saved = savedDiagnostics {
             transport.restoreDiagnostics(json: saved.json, receivedAt: saved.receivedAt)
         }
@@ -329,6 +332,41 @@ public final class LupedSmartwatchManager: SmartwatchManager {
     /// Whether the app may keep the watch's Bluetooth service running in the background.
     public static func hasBluetoothPeripheralBackgroundMode() -> Bool {
         (Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String])?.contains("bluetooth-peripheral") == true
+    }
+
+    static let linkStalledAlertIdentifier = "watchLinkStalled"
+
+    /// The alert asking the user to close and open the host app again: the
+    /// services were published again several times while a Pebble stayed
+    /// connected, and no watch opened a session. A restart has fixed it; nothing
+    /// else tried has. About the watch itself, never about glucose.
+    static func linkStalledAlert(pluginIdentifier: String, hostName: String) -> Alert {
+        let content = Alert.Content(
+            title: LocalizedString("Watch not connected", comment: "Alert title: the watch doesn't open a session with the app"),
+            body: String(format: LocalizedString("The watch is connected to the iPhone but not to %1$@, so it isn't getting new data. Close %1$@ completely and open it again.", comment: "Alert body: %1$@ is the app name"), hostName),
+            acknowledgeActionButtonLabel: LocalizedString("OK", comment: "Alert acknowledge button")
+        )
+        return Alert(
+            identifier: Alert.Identifier(managerIdentifier: pluginIdentifier, alertIdentifier: linkStalledAlertIdentifier),
+            foregroundContent: content,
+            backgroundContent: content,
+            trigger: .immediate,
+            interruptionLevel: .timeSensitive
+        )
+    }
+
+    /// Issues the "close and open the app again" alert while the link is stalled
+    /// and withdraws it when a watch session opens (or the app has restarted).
+    @MainActor
+    func watchLinkStalledDidChange(_ stalled: Bool) {
+        guard let delegate = smartwatchManagerDelegate else { return }
+        let alert = Self.linkStalledAlert(pluginIdentifier: pluginIdentifier, hostName: Self.hostName)
+        if stalled {
+            logNote("Asking the user to close and open \(Self.hostName) again: the watch doesn't open a session", kind: .error)
+            Task { await delegate.issueAlert(alert) }
+        } else {
+            Task { await delegate.retractAlert(identifier: alert.identifier) }
+        }
     }
 
     @MainActor
