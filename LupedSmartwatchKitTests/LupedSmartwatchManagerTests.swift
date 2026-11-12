@@ -352,6 +352,46 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         XCTAssertEqual(delegate.reads, [], "the watch doesn't show the mute")
     }
 
+    private func curve(_ values: [Double], start: Date = Date(timeIntervalSince1970: 1_800_000_000)) -> [PredictedGlucoseValue] {
+        values.enumerated().map { PredictedGlucoseValue(startDate: start.addingTimeInterval(Double($0.offset) * 300), quantity: LoopQuantity(unit: .milligramsPerDeciliter, doubleValue: $0.element)) }
+    }
+
+    /// Per time, the lowest and highest across the curves, cut where the shortest ends.
+    func testForecastCone() {
+        let cone = LupedHostData.forecastCone([curve([100, 110, 120]), curve([90, 130]), curve([95, 105, 140])])
+        XCTAssertEqual(cone.map(\.low), [90, 105])
+        XCTAssertEqual(cone.map(\.high), [100, 130])
+        XCTAssertEqual(cone.map(\.date), curve([0, 0]).map(\.startDate))
+        XCTAssertEqual(LupedHostData.forecastCone([curve([100, 110])]).map(\.high), [100, 110], "one curve gives its line")
+        XCTAssertTrue(LupedHostData.forecastCone([]).isEmpty)
+    }
+
+    /// Each curve, then the cone, in whole mg/dL, so the cone can be checked from the log.
+    func testForecastLogLines() {
+        let lines = LupedHostData.forecastLogLines([curve([100.4, 110]), curve([90, 130.6, 150])])
+        XCTAssertEqual(lines.count, 3)
+        XCTAssertEqual(lines[0], "Debug forecast curve 1 of 2, 2 values: 100,110")
+        XCTAssertEqual(lines[1], "Debug forecast curve 2 of 2, 3 values: 90,131,150")
+        XCTAssertTrue(lines[2].hasPrefix("Debug forecast cone (not sent), 2 values from 2027-01-15T08:00:00Z to 2027-01-15T08:05:00Z, low-high: "), lines[2])
+        XCTAssertTrue(lines[2].hasSuffix(": 90-100,110-131"), lines[2])
+        XCTAssertTrue(LupedHostData.forecastLogLines([]).isEmpty, "nothing before the loop has run")
+    }
+
+    /// The forecast goes to the device log when the loop state is read; it isn't sent.
+    func testForecastIsLoggedWithTheLoopState() async throws {
+        let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, statusLine: .iobAndCob))
+        let delegate = MockSmartwatchManagerDelegate()
+        manager.smartwatchManagerDelegate = delegate
+        delegate.loopState = SmartwatchLoopState(lastLoopCompleted: nil, isClosedLoop: true, predictedGlucose: [curve([100, 110]), curve([90, 120])])
+
+        manager.hostDataDidChange(.all)
+        await manager.hostReadTask?.value
+        let logged = delegate.logEntries.map(\.message).filter { $0.hasPrefix("Debug forecast") }
+        XCTAssertEqual(logged.count, 3)
+        XCTAssertTrue(logged[2].hasSuffix(": 90-100,110-120"), logged[2])
+        XCTAssertFalse(manager.transport.communicationLog.entries.contains { $0.message.hasPrefix("Debug forecast") }, "device log only")
+    }
+
     /// With Luped Remote on, presets are read and a bolus context is issued from
     /// the host's recommendation, maximum bolus and volumes. The token stays
     /// while they and the newest reading are unchanged.

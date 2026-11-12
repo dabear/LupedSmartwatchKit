@@ -90,6 +90,39 @@ struct LupedHostData {
         quantity.is(compatibleWith: .internationalUnitsPerHour) ? quantity.doubleValue(for: .internationalUnitsPerHour) : nil
     }
 
+    // MARK: Forecast
+
+    /// The forecast cone: per time, the lowest and highest mg/dL across the
+    /// host's forecast curves, cut where the shortest ends (one curve gives its
+    /// line). Not sent to the watch: the plugin logs it, so the cone can be
+    /// checked against the host's forecasts.
+    static func forecastCone(_ curves: [[PredictedGlucoseValue]]) -> [(date: Date, low: Double, high: Double)] {
+        guard let length = curves.map(\.count).min() else { return [] }
+        return (0 ..< length).compactMap { index in
+            let values = curves.compactMap { milligramsPerDeciliter($0[index].quantity) }
+            guard values.count == curves.count, let low = values.min(), let high = values.max() else { return nil }
+            return (date: curves[0][index].startDate, low: low, high: high)
+        }
+    }
+
+    /// The debug log lines for the forecast, in whole mg/dL: each curve, then
+    /// the cone. None before the loop has run.
+    static func forecastLogLines(_ curves: [[PredictedGlucoseValue]]) -> [String] {
+        let cone = forecastCone(curves)
+        guard let first = cone.first, let last = cone.last else { return [] }
+        let whole = { (value: Double) in String(Int(value.rounded())) }
+        let dates = ISO8601DateFormatter()
+        var lines = curves.enumerated().map { index, curve in
+            "Debug forecast curve \(index + 1) of \(curves.count), \(curve.count) values: "
+                + curve.map { milligramsPerDeciliter($0.quantity).map(whole) ?? "?" }.joined(separator: ",")
+        }
+        lines.append(
+            "Debug forecast cone (not sent), \(cone.count) values from \(dates.string(from: first.date)) to \(dates.string(from: last.date)), low-high: "
+                + cone.map { "\(whole($0.low))-\(whole($0.high))" }.joined(separator: ",")
+        )
+        return lines
+    }
+
     /// The presets as Luped Remote lists them, with the running one marked: the
     /// one whose override context is that preset.
     static func lupedPresets(_ presets: [TemporaryPreset], active: TemporaryScheduleOverride?, now: Date = Date()) -> [LupedPreset] {
@@ -179,6 +212,10 @@ extension LupedSmartwatchManager {
             hostData.loopState = nil
         } else if changes.contains(.loop) {
             hostData.loopState = await delegate.smartwatchManagerLoopState(self)
+            // Device log only, to check the cone against the host's forecasts.
+            for line in LupedHostData.forecastLogLines(hostData.loopState?.predictedGlucose ?? []) {
+                logDeviceCommunication(line, kind: .info)
+            }
         }
         // Read on every change: the basal rate, sensitivity and target follow the
         // time of day, so a new reading is when a schedule's next value shows.
