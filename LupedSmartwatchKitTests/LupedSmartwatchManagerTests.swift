@@ -377,8 +377,8 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         XCTAssertTrue(LupedHostData.forecastLogLines([]).isEmpty, "nothing before the loop has run")
     }
 
-    /// The forecast goes to the device log when the loop state is read; it isn't sent.
-    func testForecastIsLoggedWithTheLoopState() async throws {
+    /// The forecast stays out of the device log (it can be shared), and isn't sent.
+    func testForecastIsNotLogged() async throws {
         let manager = LupedSmartwatchManager(settings: LupedSettings(isEnabled: false, statusLine: .iobAndCob))
         let delegate = MockSmartwatchManagerDelegate()
         manager.smartwatchManagerDelegate = delegate
@@ -386,10 +386,9 @@ final class LupedSmartwatchManagerTests: XCTestCase {
 
         manager.hostDataDidChange(.all)
         await manager.hostReadTask?.value
-        let logged = delegate.logEntries.map(\.message).filter { $0.hasPrefix("Debug forecast") }
-        XCTAssertEqual(logged.count, 3)
-        XCTAssertTrue(logged[2].hasSuffix(": 90-100,110-120"), logged[2])
-        XCTAssertFalse(manager.transport.communicationLog.entries.contains { $0.message.hasPrefix("Debug forecast") }, "device log only")
+        XCTAssertEqual(delegate.reads.last, "loop")
+        XCTAssertFalse(delegate.logEntries.contains { $0.message.hasPrefix("Debug forecast") })
+        XCTAssertFalse(manager.transport.communicationLog.entries.contains { $0.message.hasPrefix("Debug forecast") })
     }
 
     /// With Luped Remote on, presets are read and a bolus context is issued from

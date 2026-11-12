@@ -212,10 +212,11 @@ extension LupedSmartwatchManager {
             hostData.loopState = nil
         } else if changes.contains(.loop) {
             hostData.loopState = await delegate.smartwatchManagerLoopState(self)
-            // Device log only, to check the cone against the host's forecasts.
-            for line in LupedHostData.forecastLogLines(hostData.loopState?.predictedGlucose ?? []) {
-                logDeviceCommunication(line, kind: .info)
-            }
+            // Off: the device log can be shared, and the forecast is health data.
+            // To check the cone against the host's forecasts, turn it on in a local build:
+            // for line in LupedHostData.forecastLogLines(hostData.loopState?.predictedGlucose ?? []) {
+            //     logDeviceCommunication(line, kind: .info)
+            // }
         }
         // Read on every change: the basal rate, sensitivity and target follow the
         // time of day, so a new reading is when a schedule's next value shows.
