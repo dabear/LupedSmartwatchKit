@@ -763,7 +763,7 @@
 			repositoryURL = "https://github.com/dabear/elbbepTransport.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 1.4.11;
+				minimumVersion = 1.4.12;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

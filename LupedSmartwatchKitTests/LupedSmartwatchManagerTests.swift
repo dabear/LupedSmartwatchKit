@@ -249,7 +249,7 @@ final class LupedSmartwatchManagerTests: XCTestCase {
         manager.hostData.glucoseSamples = [StoredGlucoseSample(startDate: start, quantity: mmol(5.5))]
         manager.hostData.loopState = SmartwatchLoopState(lastLoopCompleted: start, isClosedLoop: true, eventualGlucose: mmol(7))
         manager.hostData.therapy = LupedHostData.Therapy(
-            tempBasal: DoseEntry(type: .tempBasal, startDate: start, endDate: start.addingTimeInterval(1_800), value: 0.4, unit: .unitsPerHour, decisionId: nil),
+            tempBasal: DoseEntry(type: .tempBasal, startDate: start, endDate: start.addingTimeInterval(1_800), value: 0.4, unit: .unitsPerHour),
             scheduledBasalRate: LoopQuantity(unit: .internationalUnitsPerHour, doubleValue: 0.85),
             insulinSensitivity: LoopQuantity(unit: .millimolesPerLiterPerInternationalUnit, doubleValue: 2.5),
             correctionRange: mmol(5.5)...mmol(6.1)
